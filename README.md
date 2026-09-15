@@ -2,7 +2,7 @@
 
 PCForge là hệ thống bán linh kiện và phụ kiện máy tính, hỗ trợ **AI Build PC**, khuyến mãi động, quản lý kho và bảo hành theo số serial (SN).
 
-Tài liệu này được tổng hợp từ bộ nguồn `C:\Users\dat\pcforge-database` cho repository **SBA301**. Đây là bản mô tả thiết kế và hướng dẫn sử dụng; các file SQL và công cụ kiểm tra được nhắc đến bên dưới nằm trong bộ nguồn trên máy, chưa được đính kèm trong repository này.
+Tài liệu này được tổng hợp từ bộ nguồn `C:\Users\dat\pcforge-database` cho repository **SBA301**. Repository bao gồm toàn bộ SQL, ví dụ khuyến mãi và công cụ kiểm tra.
 
 ## 1. Tổng quan
 
@@ -87,8 +87,8 @@ warranty_claims → repair_estimates → payments
 ## 4. Bộ file nguồn
 
 ```text
-pcforge-database/
-├── README.md                       # Hướng dẫn gốc
+SBA301/
+├── README.md                       # Tài liệu tổng hợp
 ├── bootstrap.sql                   # Tạo database pcforge
 ├── V1__schema.sql                  # Bảng, khóa, CHECK, index và view
 ├── V2__reference_data.sql          # Dữ liệu tham chiếu
@@ -101,11 +101,18 @@ pcforge-database/
     └── smoke.sql                   # Kiểm tra trên MySQL
 ```
 
+Tải hoặc xem trực tiếp: [bootstrap](bootstrap.sql), [schema V1](V1__schema.sql), [dữ liệu nền V2](V2__reference_data.sql), [SQL tổng hợp](PCForge_MySQL_Full.txt), [ví dụ khuyến mãi](examples/promotion_examples.sql) và [smoke test](tests/smoke.sql).
+
 Trong `PCForge_MySQL_Full.txt`, phần 1–3 chứa bootstrap, schema và dữ liệu nền; phần 4–5 là SQL tùy chọn nằm trong chú thích. Ví dụ khuyến mãi cần được điền ID thật trước khi sử dụng.
 
 ## 5. Khởi tạo MySQL
 
-Các lệnh dưới đây sử dụng đường dẫn bộ nguồn trên máy Windows. Khi chuyển máy, thay đường dẫn tương ứng.
+Clone repository rồi mở terminal tại thư mục dự án:
+
+```bash
+git clone https://github.com/jonhhh231/SBA301.git
+cd SBA301
+```
 
 Mở MySQL client:
 
@@ -116,10 +123,10 @@ mysql --default-character-set=utf8mb4 -u root -p
 Chạy theo thứ tự trong MySQL console:
 
 ```sql
-SOURCE C:/Users/dat/pcforge-database/bootstrap.sql;
+SOURCE bootstrap.sql;
 USE pcforge;
-SOURCE C:/Users/dat/pcforge-database/V1__schema.sql;
-SOURCE C:/Users/dat/pcforge-database/V2__reference_data.sql;
+SOURCE V1__schema.sql;
+SOURCE V2__reference_data.sql;
 
 SHOW TABLES;
 
@@ -316,7 +323,7 @@ Theo tài liệu nguồn, bộ SQL đã được kiểm tra tĩnh bằng `node-s
 
 **Bộ SQL chưa được thực thi trực tiếp trên MySQL server tại môi trường tạo file.** Kết quả kiểm tra tĩnh không thay thế kiểm thử DDL, seed và transaction trên MySQL.
 
-Chạy lại kiểm tra tĩnh từ thư mục `C:\Users\dat\pcforge-database\tests`:
+Chạy lại kiểm tra tĩnh từ thư mục `tests` của repository:
 
 ```bash
 npm install --ignore-scripts
@@ -326,7 +333,7 @@ npm run check
 Sau khi nạp V1/V2 vào database thử nghiệm, chạy smoke test trong MySQL:
 
 ```sql
-SOURCE C:/Users/dat/pcforge-database/tests/smoke.sql;
+SOURCE tests/smoke.sql;
 ```
 
 Smoke test tạo procedure tạm, chạy fixture trong transaction, `ROLLBACK` và xóa procedure; cần quyền `CREATE ROUTINE`/`EXECUTE`, báo `SQLSTATE 45000` khi lỗi. Chỉ chạy trên database thử nghiệm.

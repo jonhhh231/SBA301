@@ -1,0 +1,2603 @@
+-- PCFORGE — TOÀN BỘ SQL MYSQL
+-- Công nghệ: MySQL + Spring Boot + React.
+-- Yêu cầu MySQL >= 8.0.16; khuyến nghị MySQL 8.4 LTS.
+-- Chạy một lần trên database pcforge trống.
+-- Phần 1–3: tạo database, schema và dữ liệu nền.
+-- Phần 4–5: SQL tùy chọn nằm trong chú thích, không tự chạy.
+-- Schema đã được kiểm tra tĩnh, chưa thực thi trực tiếp trên MySQL server.
+
+-- ================================================================
+-- PHẦN 1: bootstrap.sql
+-- ================================================================
+-- MySQL >= 8.0.16; recommended: MySQL 8.4 LTS.
+-- Run once with an account allowed to create databases.
+CREATE DATABASE IF NOT EXISTS pcforge
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+
+
+USE pcforge;
+
+-- ================================================================
+-- PHẦN 2: V1__schema.sql
+-- ================================================================
+-- PCForge / MySQL 8.0.16+ / InnoDB / Spring Boot.
+-- Select database pcforge before running. No DROP, no sample passwords.
+-- All DATETIME values represent UTC. Money is DECIMAL, Java uses BigDecimal.
+-- Execute once on an empty database, or let Flyway apply this migration.
+SET NAMES utf8mb4;
+SET time_zone = '+00:00';
+
+-- ================================================================
+-- 01. IDENTITY / RBAC
+-- ================================================================
+CREATE TABLE users (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(254) NOT NULL,
+  phone VARCHAR(25),
+  password_hash VARCHAR(255),
+  full_name VARCHAR(150) NOT NULL,
+  avatar_url VARCHAR(1000),
+  status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+  email_verified_at DATETIME(6),
+  last_login_at DATETIME(6),
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  version BIGINT NOT NULL DEFAULT 0,
+  UNIQUE KEY uk_users_email (email),
+  CONSTRAINT ck_users_status CHECK (status IN ('ACTIVE','BLOCKED','DEACTIVATED'))
+) ENGINE=InnoDB;
+
+CREATE TABLE auth_identities (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  provider VARCHAR(20) NOT NULL,
+  provider_subject VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_identity_subject (provider, provider_subject),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  CHECK (provider IN ('GOOGLE','FACEBOOK'))
+) ENGINE=InnoDB;
+
+CREATE TABLE auth_tokens (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  token_hash BINARY(32) NOT NULL,
+  purpose VARCHAR(30) NOT NULL,
+  expires_at DATETIME(6) NOT NULL,
+  used_at DATETIME(6),
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_auth_token (token_hash),
+  KEY ix_auth_token_expiry (expires_at),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  CHECK (purpose IN ('VERIFY_EMAIL','RESET_PASSWORD'))
+) ENGINE=InnoDB;
+
+CREATE TABLE auth_sessions (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  refresh_token_hash BINARY(32) NOT NULL,
+  expires_at DATETIME(6) NOT NULL,
+  revoked_at DATETIME(6),
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_refresh_token (refresh_token_hash),
+  KEY ix_session_expiry (expires_at),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE roles (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(40) NOT NULL UNIQUE,
+  name VARCHAR(100) NOT NULL
+) ENGINE=InnoDB;
+CREATE TABLE permissions (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(80) NOT NULL UNIQUE,
+  description VARCHAR(255)
+) ENGINE=InnoDB;
+CREATE TABLE user_roles (
+  user_id BIGINT NOT NULL,
+  role_id BIGINT NOT NULL,
+  PRIMARY KEY (user_id, role_id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (role_id) REFERENCES roles(id)
+) ENGINE=InnoDB;
+CREATE TABLE role_permissions (
+  role_id BIGINT NOT NULL,
+  permission_id BIGINT NOT NULL,
+  PRIMARY KEY (role_id, permission_id),
+  FOREIGN KEY (role_id) REFERENCES roles(id),
+  FOREIGN KEY (permission_id) REFERENCES permissions(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE customer_addresses (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  recipient_name VARCHAR(150) NOT NULL,
+  phone VARCHAR(25) NOT NULL,
+  country_code CHAR(2) NOT NULL DEFAULT 'VN',
+  province_code VARCHAR(30),
+  province_name VARCHAR(100) NOT NULL,
+  district_code VARCHAR(30),
+  district_name VARCHAR(100),
+  ward_code VARCHAR(30),
+  ward_name VARCHAR(100),
+  address_line VARCHAR(500) NOT NULL,
+  postal_code VARCHAR(20),
+  is_default BOOLEAN NOT NULL DEFAULT FALSE,
+  default_owner BIGINT GENERATED ALWAYS AS (CASE WHEN is_default = 1 THEN user_id ELSE NULL END) STORED,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_address_default (default_owner),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  CHECK (is_default IN (0,1))
+) ENGINE=InnoDB;
+CREATE TABLE customer_groups (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(50) NOT NULL UNIQUE,
+  name VARCHAR(150) NOT NULL
+) ENGINE=InnoDB;
+CREATE TABLE customer_group_members (
+  group_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  PRIMARY KEY (group_id, user_id),
+  FOREIGN KEY (group_id) REFERENCES customer_groups(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+-- ================================================================
+-- 02. CATALOG / SKU / FACETED SEARCH
+-- ================================================================
+CREATE TABLE brands (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(150) NOT NULL UNIQUE,
+  slug VARCHAR(180) NOT NULL UNIQUE,
+  logo_url VARCHAR(1000),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE
+) ENGINE=InnoDB;
+CREATE TABLE categories (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  parent_id BIGINT,
+  name VARCHAR(150) NOT NULL,
+  slug VARCHAR(180) NOT NULL UNIQUE,
+  category_group VARCHAR(20) NOT NULL,
+  component_type VARCHAR(30),
+  sort_order INT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  FOREIGN KEY (parent_id) REFERENCES categories(id),
+  CHECK (category_group IN ('COMPONENT','ACCESSORY')),
+  CHECK (component_type IS NULL OR component_type IN ('CPU','MOTHERBOARD','RAM','GPU','STORAGE','PSU','CASE','COOLER','FAN','MONITOR','OTHER'))
+) ENGINE=InnoDB;
+CREATE TABLE products (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  brand_id BIGINT NOT NULL,
+  category_id BIGINT NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  slug VARCHAR(280) NOT NULL UNIQUE,
+  short_description VARCHAR(1000),
+  description LONGTEXT,
+  status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+  seo_title VARCHAR(255),
+  seo_description VARCHAR(500),
+  deleted_at DATETIME(6),
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  KEY ix_product_listing (category_id, status, created_at),
+  FULLTEXT KEY ft_product_search (name, short_description),
+  FOREIGN KEY (brand_id) REFERENCES brands(id),
+  FOREIGN KEY (category_id) REFERENCES categories(id),
+  CHECK (status IN ('DRAFT','ACTIVE','ARCHIVED'))
+) ENGINE=InnoDB;
+CREATE TABLE product_variants (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  product_id BIGINT NOT NULL,
+  sku VARCHAR(80) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+  barcode VARCHAR(100) CHARACTER SET ascii COLLATE ascii_bin UNIQUE,
+  name VARCHAR(255) NOT NULL,
+  list_price DECIMAL(19,2) NOT NULL,
+  sale_price DECIMAL(19,2) NOT NULL,
+  currency_code CHAR(3) NOT NULL DEFAULT 'VND',
+  tax_rate DECIMAL(5,2) NOT NULL DEFAULT 0,
+  weight_g DECIMAL(12,2) NOT NULL DEFAULT 0,
+  package_length_mm DECIMAL(10,2),
+  package_width_mm DECIMAL(10,2),
+  package_height_mm DECIMAL(10,2),
+  track_serial BOOLEAN NOT NULL DEFAULT FALSE,
+  status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  version BIGINT NOT NULL DEFAULT 0,
+  KEY ix_variant_price (status, sale_price),
+  FOREIGN KEY (product_id) REFERENCES products(id),
+  CHECK (list_price >= 0 AND sale_price >= 0 AND weight_g >= 0),
+  CHECK (tax_rate BETWEEN 0 AND 100),
+  CHECK (status IN ('DRAFT','ACTIVE','DISCONTINUED'))
+) ENGINE=InnoDB;
+CREATE TABLE product_media (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  product_id BIGINT NOT NULL,
+  variant_id BIGINT,
+  media_type VARCHAR(10) NOT NULL DEFAULT 'IMAGE',
+  url VARCHAR(1000) NOT NULL,
+  alt_text VARCHAR(255),
+  sort_order INT NOT NULL DEFAULT 0,
+  FOREIGN KEY (product_id) REFERENCES products(id),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  CHECK (media_type IN ('IMAGE','VIDEO'))
+) ENGINE=InnoDB;
+CREATE TABLE attribute_definitions (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(80) NOT NULL UNIQUE,
+  name VARCHAR(150) NOT NULL,
+  data_type VARCHAR(10) NOT NULL,
+  unit VARCHAR(30),
+  CHECK (data_type IN ('TEXT','NUMBER','BOOLEAN','OPTION'))
+) ENGINE=InnoDB;
+CREATE TABLE attribute_options (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  attribute_id BIGINT NOT NULL,
+  value VARCHAR(150) NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  UNIQUE KEY uk_attribute_option (attribute_id, value),
+  UNIQUE KEY uk_attribute_option_pair (attribute_id, id),
+  FOREIGN KEY (attribute_id) REFERENCES attribute_definitions(id)
+) ENGINE=InnoDB;
+CREATE TABLE category_attributes (
+  category_id BIGINT NOT NULL,
+  attribute_id BIGINT NOT NULL,
+  is_required BOOLEAN NOT NULL DEFAULT FALSE,
+  is_filterable BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (category_id, attribute_id),
+  FOREIGN KEY (category_id) REFERENCES categories(id),
+  FOREIGN KEY (attribute_id) REFERENCES attribute_definitions(id)
+) ENGINE=InnoDB;
+CREATE TABLE variant_attribute_values (
+  variant_id BIGINT NOT NULL,
+  attribute_id BIGINT NOT NULL,
+  text_value VARCHAR(500),
+  number_value DECIMAL(18,4),
+  boolean_value BOOLEAN,
+  option_id BIGINT,
+  PRIMARY KEY (variant_id, attribute_id),
+  KEY ix_facet_number (attribute_id, number_value),
+  KEY ix_facet_option (attribute_id, option_id),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (attribute_id) REFERENCES attribute_definitions(id),
+  FOREIGN KEY (attribute_id, option_id) REFERENCES attribute_options(attribute_id, id),
+  CHECK ((text_value IS NOT NULL) + (number_value IS NOT NULL) + (boolean_value IS NOT NULL) + (option_id IS NOT NULL) = 1),
+  CHECK (boolean_value IS NULL OR boolean_value IN (0,1))
+) ENGINE=InnoDB;
+CREATE TABLE product_price_history (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  variant_id BIGINT NOT NULL,
+  old_price DECIMAL(19,2) NOT NULL,
+  new_price DECIMAL(19,2) NOT NULL,
+  changed_by BIGINT,
+  reason VARCHAR(500),
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  KEY ix_price_history (variant_id, created_at),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (changed_by) REFERENCES users(id),
+  CHECK (old_price >= 0 AND new_price >= 0)
+) ENGINE=InnoDB;
+CREATE TABLE product_relations (
+  product_id BIGINT NOT NULL,
+  related_product_id BIGINT NOT NULL,
+  relation_type VARCHAR(20) NOT NULL,
+  PRIMARY KEY (product_id, related_product_id, relation_type),
+  FOREIGN KEY (product_id) REFERENCES products(id),
+  FOREIGN KEY (related_product_id) REFERENCES products(id),
+  CHECK (product_id <> related_product_id),
+  CHECK (relation_type IN ('RELATED','ACCESSORY','ALTERNATIVE'))
+) ENGINE=InnoDB;
+
+-- ================================================================
+-- 03. TYPED COMPONENT SPECS / COMPATIBILITY
+-- NULL = unknown, never automatically compatible.
+-- ================================================================
+CREATE TABLE spec_sources (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  source_url VARCHAR(1000),
+  verified_at DATETIME(6),
+  verified_by BIGINT,
+  notes TEXT,
+  FOREIGN KEY (verified_by) REFERENCES users(id)
+) ENGINE=InnoDB;
+CREATE TABLE cpu_sockets (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(40) NOT NULL UNIQUE,
+  manufacturer VARCHAR(80) NOT NULL
+) ENGINE=InnoDB;
+CREATE TABLE cpu_specs (
+  variant_id BIGINT NOT NULL PRIMARY KEY,
+  socket_id BIGINT NOT NULL,
+  family VARCHAR(100),
+  generation VARCHAR(60),
+  core_count SMALLINT,
+  thread_count SMALLINT,
+  base_power_w DECIMAL(8,2),
+  max_power_w DECIMAL(8,2),
+  has_igpu BOOLEAN,
+  igpu_model VARCHAR(100),
+  includes_cooler BOOLEAN,
+  source_id BIGINT,
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (socket_id) REFERENCES cpu_sockets(id),
+  FOREIGN KEY (source_id) REFERENCES spec_sources(id),
+  CHECK (core_count > 0 AND thread_count > 0),
+  CHECK (base_power_w >= 0 AND max_power_w >= 0)
+) ENGINE=InnoDB;
+CREATE TABLE cpu_memory_support (
+  cpu_variant_id BIGINT NOT NULL,
+  memory_type VARCHAR(10) NOT NULL,
+  max_capacity_gb INT,
+  max_official_speed_mts INT,
+  PRIMARY KEY (cpu_variant_id, memory_type),
+  FOREIGN KEY (cpu_variant_id) REFERENCES cpu_specs(variant_id),
+  CHECK (max_capacity_gb > 0 AND max_official_speed_mts > 0)
+) ENGINE=InnoDB;
+CREATE TABLE motherboard_specs (
+  variant_id BIGINT NOT NULL PRIMARY KEY,
+  socket_id BIGINT NOT NULL,
+  chipset VARCHAR(60) NOT NULL,
+  form_factor VARCHAR(30) NOT NULL,
+  memory_type VARCHAR(10) NOT NULL,
+  memory_module_type VARCHAR(20) NOT NULL DEFAULT 'UDIMM',
+  ram_slots SMALLINT NOT NULL,
+  max_ram_gb INT NOT NULL,
+  supports_ecc BOOLEAN,
+  has_display_output BOOLEAN,
+  has_wifi BOOLEAN,
+  source_id BIGINT,
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (socket_id) REFERENCES cpu_sockets(id),
+  FOREIGN KEY (source_id) REFERENCES spec_sources(id),
+  CHECK (ram_slots > 0 AND max_ram_gb > 0)
+) ENGINE=InnoDB;
+CREATE TABLE motherboard_cpu_support (
+  motherboard_variant_id BIGINT NOT NULL,
+  cpu_variant_id BIGINT NOT NULL,
+  minimum_bios VARCHAR(80),
+  support_status VARCHAR(20) NOT NULL,
+  source_id BIGINT,
+  PRIMARY KEY (motherboard_variant_id, cpu_variant_id),
+  FOREIGN KEY (motherboard_variant_id) REFERENCES motherboard_specs(variant_id),
+  FOREIGN KEY (cpu_variant_id) REFERENCES cpu_specs(variant_id),
+  FOREIGN KEY (source_id) REFERENCES spec_sources(id),
+  CHECK (support_status IN ('SUPPORTED','UNSUPPORTED','UNKNOWN'))
+) ENGINE=InnoDB;
+CREATE TABLE ram_specs (
+  variant_id BIGINT NOT NULL PRIMARY KEY,
+  memory_type VARCHAR(10) NOT NULL,
+  module_type VARCHAR(20) NOT NULL,
+  capacity_per_module_gb INT NOT NULL,
+  modules_per_kit SMALLINT NOT NULL DEFAULT 1,
+  speed_mts INT NOT NULL,
+  is_ecc BOOLEAN NOT NULL DEFAULT FALSE,
+  is_registered BOOLEAN NOT NULL DEFAULT FALSE,
+  height_mm DECIMAL(8,2),
+  source_id BIGINT,
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (source_id) REFERENCES spec_sources(id),
+  CHECK (capacity_per_module_gb > 0 AND modules_per_kit > 0 AND speed_mts > 0)
+) ENGINE=InnoDB;
+CREATE TABLE gpu_specs (
+  variant_id BIGINT NOT NULL PRIMARY KEY,
+  chipset VARCHAR(100) NOT NULL,
+  vram_gb INT NOT NULL,
+  length_mm DECIMAL(8,2),
+  height_mm DECIMAL(8,2),
+  thickness_slots DECIMAL(4,1),
+  board_power_w DECIMAL(8,2),
+  recommended_psu_w INT,
+  pcie_generation SMALLINT,
+  pcie_lanes SMALLINT,
+  source_id BIGINT,
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (source_id) REFERENCES spec_sources(id),
+  CHECK (vram_gb > 0 AND length_mm > 0 AND board_power_w >= 0)
+) ENGINE=InnoDB;
+CREATE TABLE storage_specs (
+  variant_id BIGINT NOT NULL PRIMARY KEY,
+  drive_type VARCHAR(10) NOT NULL,
+  capacity_gb INT NOT NULL,
+  interface_type VARCHAR(30) NOT NULL,
+  protocol VARCHAR(30) NOT NULL,
+  form_factor VARCHAR(30) NOT NULL,
+  length_mm DECIMAL(8,2),
+  source_id BIGINT,
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (source_id) REFERENCES spec_sources(id),
+  CHECK (drive_type IN ('SSD','HDD')),
+  CHECK (capacity_gb > 0)
+) ENGINE=InnoDB;
+CREATE TABLE psu_specs (
+  variant_id BIGINT NOT NULL PRIMARY KEY,
+  continuous_power_w INT NOT NULL,
+  form_factor VARCHAR(30) NOT NULL,
+  length_mm DECIMAL(8,2),
+  efficiency_rating VARCHAR(40),
+  atx_version VARCHAR(20),
+  modular_type VARCHAR(20),
+  source_id BIGINT,
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (source_id) REFERENCES spec_sources(id),
+  CHECK (continuous_power_w > 0 AND length_mm > 0)
+) ENGINE=InnoDB;
+CREATE TABLE case_specs (
+  variant_id BIGINT NOT NULL PRIMARY KEY,
+  max_gpu_length_mm DECIMAL(8,2),
+  max_cooler_height_mm DECIMAL(8,2),
+  max_psu_length_mm DECIMAL(8,2),
+  expansion_slots SMALLINT,
+  source_id BIGINT,
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (source_id) REFERENCES spec_sources(id),
+  CHECK (max_gpu_length_mm > 0 AND max_cooler_height_mm > 0 AND max_psu_length_mm > 0)
+) ENGINE=InnoDB;
+CREATE TABLE cooler_specs (
+  variant_id BIGINT NOT NULL PRIMARY KEY,
+  cooler_type VARCHAR(10) NOT NULL,
+  height_mm DECIMAL(8,2),
+  radiator_size_mm INT,
+  radiator_thickness_mm DECIMAL(8,2),
+  cooling_assessment JSON,
+  source_id BIGINT,
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (source_id) REFERENCES spec_sources(id),
+  CHECK (cooler_type IN ('AIR','AIO','CUSTOM')),
+  CHECK (height_mm > 0 AND radiator_size_mm > 0)
+) ENGINE=InnoDB;
+CREATE TABLE fan_specs (
+  variant_id BIGINT NOT NULL PRIMARY KEY,
+  size_mm INT NOT NULL,
+  thickness_mm DECIMAL(8,2),
+  connector_type VARCHAR(30),
+  voltage_v DECIMAL(6,2),
+  current_a DECIMAL(6,3),
+  source_id BIGINT,
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (source_id) REFERENCES spec_sources(id),
+  CHECK (size_mm > 0)
+) ENGINE=InnoDB;
+CREATE TABLE motherboard_storage_slots (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  motherboard_variant_id BIGINT NOT NULL,
+  slot_code VARCHAR(40) NOT NULL,
+  interface_type VARCHAR(30) NOT NULL,
+  supported_protocols JSON NOT NULL,
+  supported_form_factors JSON NOT NULL,
+  pcie_generation SMALLINT,
+  pcie_lanes SMALLINT,
+  UNIQUE KEY uk_mb_storage_slot (motherboard_variant_id, slot_code),
+  FOREIGN KEY (motherboard_variant_id) REFERENCES motherboard_specs(variant_id)
+) ENGINE=InnoDB;
+CREATE TABLE motherboard_expansion_slots (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  motherboard_variant_id BIGINT NOT NULL,
+  slot_code VARCHAR(40) NOT NULL,
+  physical_lanes SMALLINT NOT NULL,
+  electrical_lanes SMALLINT NOT NULL,
+  pcie_generation SMALLINT,
+  UNIQUE KEY uk_mb_expansion_slot (motherboard_variant_id, slot_code),
+  FOREIGN KEY (motherboard_variant_id) REFERENCES motherboard_specs(variant_id),
+  CHECK (physical_lanes > 0 AND electrical_lanes > 0 AND electrical_lanes <= physical_lanes)
+) ENGINE=InnoDB;
+CREATE TABLE motherboard_lane_sharing_rules (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  motherboard_variant_id BIGINT NOT NULL,
+  condition_config JSON NOT NULL,
+  effect_config JSON NOT NULL,
+  description VARCHAR(1000) NOT NULL,
+  source_id BIGINT,
+  FOREIGN KEY (motherboard_variant_id) REFERENCES motherboard_specs(variant_id),
+  FOREIGN KEY (source_id) REFERENCES spec_sources(id)
+) ENGINE=InnoDB;
+CREATE TABLE case_supported_form_factors (
+  case_variant_id BIGINT NOT NULL,
+  component_type VARCHAR(20) NOT NULL,
+  form_factor VARCHAR(30) NOT NULL,
+  PRIMARY KEY (case_variant_id, component_type, form_factor),
+  FOREIGN KEY (case_variant_id) REFERENCES case_specs(variant_id),
+  CHECK (component_type IN ('MOTHERBOARD','PSU'))
+) ENGINE=InnoDB;
+CREATE TABLE case_mount_points (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  case_variant_id BIGINT NOT NULL,
+  position_code VARCHAR(40) NOT NULL,
+  device_type VARCHAR(20) NOT NULL,
+  size_code VARCHAR(30) NOT NULL,
+  quantity SMALLINT NOT NULL,
+  UNIQUE KEY uk_case_mount (case_variant_id, position_code, device_type, size_code),
+  FOREIGN KEY (case_variant_id) REFERENCES case_specs(variant_id),
+  CHECK (device_type IN ('FAN','RADIATOR','STORAGE')),
+  CHECK (quantity > 0)
+) ENGINE=InnoDB;
+CREATE TABLE case_clearance_profiles (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  case_variant_id BIGINT NOT NULL,
+  name VARCHAR(150) NOT NULL,
+  installation_conditions JSON NOT NULL,
+  clearance_limits JSON NOT NULL,
+  source_id BIGINT,
+  FOREIGN KEY (case_variant_id) REFERENCES case_specs(variant_id),
+  FOREIGN KEY (source_id) REFERENCES spec_sources(id)
+) ENGINE=InnoDB;
+CREATE TABLE cooler_supported_sockets (
+  cooler_variant_id BIGINT NOT NULL,
+  socket_id BIGINT NOT NULL,
+  requires_mounting_kit BOOLEAN NOT NULL DEFAULT FALSE,
+  mounting_kit_variant_id BIGINT,
+  PRIMARY KEY (cooler_variant_id, socket_id),
+  FOREIGN KEY (cooler_variant_id) REFERENCES cooler_specs(variant_id),
+  FOREIGN KEY (socket_id) REFERENCES cpu_sockets(id),
+  FOREIGN KEY (mounting_kit_variant_id) REFERENCES product_variants(id)
+) ENGINE=InnoDB;
+CREATE TABLE power_connector_types (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(40) NOT NULL UNIQUE,
+  name VARCHAR(100) NOT NULL
+) ENGINE=InnoDB;
+CREATE TABLE variant_power_connectors (
+  variant_id BIGINT NOT NULL,
+  connector_type_id BIGINT NOT NULL,
+  direction VARCHAR(10) NOT NULL,
+  quantity SMALLINT NOT NULL,
+  PRIMARY KEY (variant_id, connector_type_id, direction),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (connector_type_id) REFERENCES power_connector_types(id),
+  CHECK (direction IN ('SUPPLY','REQUIRE')),
+  CHECK (quantity > 0)
+) ENGINE=InnoDB;
+CREATE TABLE variant_included_items (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  parent_variant_id BIGINT NOT NULL,
+  included_variant_id BIGINT,
+  item_type VARCHAR(30) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  quantity SMALLINT NOT NULL DEFAULT 1,
+  specifications JSON,
+  FOREIGN KEY (parent_variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (included_variant_id) REFERENCES product_variants(id),
+  CHECK (quantity > 0),
+  CHECK (included_variant_id IS NULL OR included_variant_id <> parent_variant_id)
+) ENGINE=InnoDB;
+CREATE TABLE compatibility_rules (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(80) NOT NULL,
+  rule_version INT NOT NULL,
+  evaluator_key VARCHAR(100) NOT NULL,
+  severity VARCHAR(10) NOT NULL,
+  configuration JSON NOT NULL,
+  description VARCHAR(1000) NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_compatibility_version (code, rule_version),
+  CHECK (rule_version > 0),
+  CHECK (severity IN ('ERROR','WARNING','INFO'))
+) ENGINE=InnoDB;
+CREATE TABLE compatibility_exceptions (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  rule_id BIGINT NOT NULL,
+  variant_a_id BIGINT NOT NULL,
+  variant_b_id BIGINT NOT NULL,
+  result VARCHAR(10) NOT NULL,
+  explanation VARCHAR(1000) NOT NULL,
+  source_id BIGINT NOT NULL,
+  expires_at DATETIME(6),
+  UNIQUE KEY uk_compatibility_exception (rule_id, variant_a_id, variant_b_id),
+  FOREIGN KEY (rule_id) REFERENCES compatibility_rules(id),
+  FOREIGN KEY (variant_a_id) REFERENCES product_variants(id),
+  FOREIGN KEY (variant_b_id) REFERENCES product_variants(id),
+  FOREIGN KEY (source_id) REFERENCES spec_sources(id),
+  CHECK (result IN ('PASS','WARNING','FAIL'))
+) ENGINE=InnoDB;
+
+-- ================================================================
+-- 04. SUPPLY / INVENTORY / SERIALIZED PHYSICAL UNITS
+-- ================================================================
+CREATE TABLE warehouses (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(40) NOT NULL UNIQUE,
+  name VARCHAR(150) NOT NULL,
+  address VARCHAR(500) NOT NULL,
+  phone VARCHAR(25),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE
+) ENGINE=InnoDB;
+CREATE TABLE warehouse_locations (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  warehouse_id BIGINT NOT NULL,
+  code VARCHAR(60) NOT NULL,
+  description VARCHAR(255),
+  UNIQUE KEY uk_location_code (warehouse_id, code),
+  UNIQUE KEY uk_location_pair (warehouse_id, id),
+  FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)
+) ENGINE=InnoDB;
+CREATE TABLE suppliers (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(40) NOT NULL UNIQUE,
+  name VARCHAR(200) NOT NULL,
+  contact_name VARCHAR(150),
+  email VARCHAR(254),
+  phone VARCHAR(25),
+  address VARCHAR(500),
+  tax_code VARCHAR(40),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE
+) ENGINE=InnoDB;
+CREATE TABLE purchase_orders (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(50) NOT NULL UNIQUE,
+  supplier_id BIGINT NOT NULL,
+  warehouse_id BIGINT NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+  currency_code CHAR(3) NOT NULL DEFAULT 'VND',
+  expected_at DATETIME(6),
+  created_by BIGINT NOT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+  FOREIGN KEY (warehouse_id) REFERENCES warehouses(id),
+  FOREIGN KEY (created_by) REFERENCES users(id),
+  CHECK (status IN ('DRAFT','ORDERED','PARTIAL','RECEIVED','CANCELLED'))
+) ENGINE=InnoDB;
+CREATE TABLE purchase_order_items (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  purchase_order_id BIGINT NOT NULL,
+  variant_id BIGINT NOT NULL,
+  quantity INT NOT NULL,
+  unit_cost DECIMAL(19,2) NOT NULL,
+  FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  CHECK (quantity > 0 AND unit_cost >= 0)
+) ENGINE=InnoDB;
+CREATE TABLE goods_receipts (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(50) NOT NULL UNIQUE,
+  supplier_id BIGINT,
+  warehouse_id BIGINT NOT NULL,
+  received_by BIGINT NOT NULL,
+  received_at DATETIME(6) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+  FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+  FOREIGN KEY (warehouse_id) REFERENCES warehouses(id),
+  FOREIGN KEY (received_by) REFERENCES users(id),
+  CHECK (status IN ('DRAFT','POSTED','VOID'))
+) ENGINE=InnoDB;
+CREATE TABLE goods_receipt_items (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  receipt_id BIGINT NOT NULL,
+  purchase_order_item_id BIGINT,
+  variant_id BIGINT NOT NULL,
+  quantity INT NOT NULL,
+  unit_cost DECIMAL(19,2) NOT NULL,
+  FOREIGN KEY (receipt_id) REFERENCES goods_receipts(id),
+  FOREIGN KEY (purchase_order_item_id) REFERENCES purchase_order_items(id),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  CHECK (quantity > 0 AND unit_cost >= 0)
+) ENGINE=InnoDB;
+CREATE TABLE inventory_balances (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  warehouse_id BIGINT NOT NULL,
+  variant_id BIGINT NOT NULL,
+  stock_condition VARCHAR(20) NOT NULL DEFAULT 'SELLABLE',
+  on_hand INT NOT NULL DEFAULT 0,
+  reserved INT NOT NULL DEFAULT 0,
+  available INT GENERATED ALWAYS AS (on_hand - reserved) STORED,
+  reorder_point INT NOT NULL DEFAULT 0,
+  version BIGINT NOT NULL DEFAULT 0,
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_inventory_bucket (warehouse_id, variant_id, stock_condition),
+  KEY ix_inventory_sku (variant_id, stock_condition, available),
+  FOREIGN KEY (warehouse_id) REFERENCES warehouses(id),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  CHECK (stock_condition IN ('SELLABLE','QUARANTINE','DAMAGED')),
+  CHECK (on_hand >= 0 AND reserved >= 0 AND reserved <= on_hand AND reorder_point >= 0),
+  CHECK (stock_condition = 'SELLABLE' OR reserved = 0)
+) ENGINE=InnoDB;
+CREATE TABLE serial_units (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  variant_id BIGINT NOT NULL,
+  serial_namespace VARCHAR(80) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  serial_number VARCHAR(150) NOT NULL,
+  serial_normalized VARCHAR(150) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  receipt_item_id BIGINT,
+  warehouse_id BIGINT,
+  location_id BIGINT,
+  lifecycle_status VARCHAR(25) NOT NULL DEFAULT 'IN_STOCK',
+  stock_condition VARCHAR(20) NOT NULL DEFAULT 'SELLABLE',
+  bios_version VARCHAR(80),
+  unit_cost DECIMAL(19,2),
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  version BIGINT NOT NULL DEFAULT 0,
+  UNIQUE KEY uk_serial_namespace (serial_namespace, serial_normalized),
+  KEY ix_serial_lookup (serial_normalized),
+  KEY ix_serial_stock (variant_id, warehouse_id, lifecycle_status),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (receipt_item_id) REFERENCES goods_receipt_items(id),
+  FOREIGN KEY (warehouse_id) REFERENCES warehouses(id),
+  FOREIGN KEY (warehouse_id, location_id) REFERENCES warehouse_locations(warehouse_id, id),
+  CHECK (location_id IS NULL OR warehouse_id IS NOT NULL),
+  CHECK (lifecycle_status IN ('IN_STOCK','RESERVED','SOLD','IN_TRANSIT','IN_SERVICE','RETURNED','RETIRED')),
+  CHECK (stock_condition IN ('SELLABLE','QUARANTINE','DAMAGED')),
+  CHECK (unit_cost >= 0)
+) ENGINE=InnoDB;
+CREATE TABLE stock_transfers (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(50) NOT NULL UNIQUE,
+  from_warehouse_id BIGINT NOT NULL,
+  to_warehouse_id BIGINT NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+  created_by BIGINT NOT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  shipped_at DATETIME(6),
+  received_at DATETIME(6),
+  FOREIGN KEY (from_warehouse_id) REFERENCES warehouses(id),
+  FOREIGN KEY (to_warehouse_id) REFERENCES warehouses(id),
+  FOREIGN KEY (created_by) REFERENCES users(id),
+  CHECK (from_warehouse_id <> to_warehouse_id),
+  CHECK (status IN ('DRAFT','IN_TRANSIT','RECEIVED','CANCELLED'))
+) ENGINE=InnoDB;
+CREATE TABLE stock_transfer_items (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  transfer_id BIGINT NOT NULL,
+  variant_id BIGINT NOT NULL,
+  quantity INT NOT NULL,
+  received_quantity INT NOT NULL DEFAULT 0,
+  FOREIGN KEY (transfer_id) REFERENCES stock_transfers(id),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  CHECK (quantity > 0 AND received_quantity BETWEEN 0 AND quantity)
+) ENGINE=InnoDB;
+CREATE TABLE stock_transfer_serials (
+  transfer_item_id BIGINT NOT NULL,
+  serial_unit_id BIGINT NOT NULL,
+  PRIMARY KEY (transfer_item_id, serial_unit_id),
+  FOREIGN KEY (transfer_item_id) REFERENCES stock_transfer_items(id),
+  FOREIGN KEY (serial_unit_id) REFERENCES serial_units(id)
+) ENGINE=InnoDB;
+
+-- ================================================================
+-- 05. AI BUILDER / REVISION HISTORY
+-- ================================================================
+CREATE TABLE usage_profiles (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(40) NOT NULL UNIQUE,
+  name VARCHAR(100) NOT NULL,
+  weights JSON NOT NULL,
+  minimum_requirements JSON,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE
+) ENGINE=InnoDB;
+CREATE TABLE benchmark_sources (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  version_label VARCHAR(80),
+  source_url VARCHAR(1000),
+  measured_at DATETIME(6),
+  methodology JSON
+) ENGINE=InnoDB;
+CREATE TABLE variant_benchmarks (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  variant_id BIGINT NOT NULL,
+  source_id BIGINT NOT NULL,
+  workload_code VARCHAR(80) NOT NULL,
+  metric_code VARCHAR(50) NOT NULL,
+  metric_value DECIMAL(18,4) NOT NULL,
+  test_context JSON NOT NULL,
+  KEY ix_benchmark_workload (workload_code, variant_id),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (source_id) REFERENCES benchmark_sources(id)
+) ENGINE=InnoDB;
+CREATE TABLE build_requests (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT,
+  guest_token_hash BINARY(32),
+  budget DECIMAL(19,2) NOT NULL,
+  currency_code CHAR(3) NOT NULL DEFAULT 'VND',
+  budget_scope VARCHAR(20) NOT NULL DEFAULT 'TOWER',
+  usage_profile_id BIGINT,
+  user_prompt TEXT,
+  preferences JSON NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  KEY ix_build_request_user (user_id, created_at),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (usage_profile_id) REFERENCES usage_profiles(id),
+  CHECK (budget > 0),
+  CHECK ((user_id IS NOT NULL) + (guest_token_hash IS NOT NULL) = 1),
+  CHECK (budget_scope IN ('TOWER','FULL_SETUP','CHECKOUT_TOTAL')),
+  CHECK (status IN ('PENDING','RUNNING','COMPLETED','NO_SOLUTION','FAILED'))
+) ENGINE=InnoDB;
+CREATE TABLE ai_runs (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  build_request_id BIGINT NOT NULL,
+  provider VARCHAR(60) NOT NULL,
+  model_name VARCHAR(150) NOT NULL,
+  prompt_version VARCHAR(50) NOT NULL,
+  status VARCHAR(20) NOT NULL,
+  input_tokens INT NOT NULL DEFAULT 0,
+  output_tokens INT NOT NULL DEFAULT 0,
+  cost_amount DECIMAL(19,6),
+  cost_currency CHAR(3),
+  error_code VARCHAR(80),
+  started_at DATETIME(6) NOT NULL,
+  finished_at DATETIME(6),
+  FOREIGN KEY (build_request_id) REFERENCES build_requests(id),
+  CHECK (status IN ('RUNNING','COMPLETED','FAILED','TIMEOUT')),
+  CHECK (input_tokens >= 0 AND output_tokens >= 0 AND cost_amount >= 0)
+) ENGINE=InnoDB;
+CREATE TABLE pc_builds (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT,
+  guest_token_hash BINARY(32),
+  name VARCHAR(200) NOT NULL,
+  visibility VARCHAR(10) NOT NULL DEFAULT 'PRIVATE',
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  CHECK ((user_id IS NOT NULL) + (guest_token_hash IS NOT NULL) = 1),
+  CHECK (visibility IN ('PRIVATE','UNLISTED','PUBLIC'))
+) ENGINE=InnoDB;
+CREATE TABLE pc_build_revisions (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  build_id BIGINT NOT NULL,
+  revision_no INT NOT NULL,
+  budget DECIMAL(19,2) NOT NULL,
+  currency_code CHAR(3) NOT NULL DEFAULT 'VND',
+  subtotal DECIMAL(19,2) NOT NULL,
+  discount_amount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  estimated_total DECIMAL(19,2) NOT NULL,
+  estimated_power_w DECIMAL(10,2),
+  validation_status VARCHAR(15) NOT NULL DEFAULT 'UNKNOWN',
+  rule_set_snapshot JSON NOT NULL,
+  pricing_snapshot JSON NOT NULL,
+  performance_summary JSON,
+  explanation TEXT,
+  quote_expires_at DATETIME(6),
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_build_revision (build_id, revision_no),
+  FOREIGN KEY (build_id) REFERENCES pc_builds(id),
+  CHECK (revision_no > 0 AND budget > 0 AND subtotal >= 0 AND estimated_total >= 0),
+  CHECK (discount_amount >= 0 AND discount_amount <= subtotal),
+  CHECK (validation_status IN ('PASS','WARNING','FAIL','UNKNOWN'))
+) ENGINE=InnoDB;
+CREATE TABLE pc_build_items (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  revision_id BIGINT NOT NULL,
+  component_type VARCHAR(30) NOT NULL,
+  variant_id BIGINT,
+  included_with_item_id BIGINT,
+  item_source VARCHAR(10) NOT NULL DEFAULT 'PURCHASED',
+  name_snapshot VARCHAR(255) NOT NULL,
+  spec_snapshot JSON NOT NULL,
+  quantity INT NOT NULL DEFAULT 1,
+  unit_price DECIMAL(19,2) NOT NULL DEFAULT 0,
+  is_locked BOOLEAN NOT NULL DEFAULT FALSE,
+  FOREIGN KEY (revision_id) REFERENCES pc_build_revisions(id),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (included_with_item_id) REFERENCES pc_build_items(id),
+  CHECK (item_source IN ('PURCHASED','EXISTING','INCLUDED')),
+  CHECK (item_source <> 'PURCHASED' OR variant_id IS NOT NULL),
+  CHECK (item_source <> 'INCLUDED' OR included_with_item_id IS NOT NULL),
+  CHECK (item_source = 'PURCHASED' OR unit_price = 0),
+  CHECK (quantity > 0 AND unit_price >= 0)
+) ENGINE=InnoDB;
+CREATE TABLE build_recommendations (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  build_request_id BIGINT NOT NULL,
+  revision_id BIGINT NOT NULL,
+  ai_run_id BIGINT,
+  label VARCHAR(30) NOT NULL,
+  rank_no SMALLINT NOT NULL,
+  score DECIMAL(12,4),
+  UNIQUE KEY uk_recommendation_rank (build_request_id, rank_no),
+  FOREIGN KEY (build_request_id) REFERENCES build_requests(id),
+  FOREIGN KEY (revision_id) REFERENCES pc_build_revisions(id),
+  FOREIGN KEY (ai_run_id) REFERENCES ai_runs(id),
+  CHECK (rank_no > 0)
+) ENGINE=InnoDB;
+CREATE TABLE build_validation_results (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  revision_id BIGINT NOT NULL,
+  rule_id BIGINT NOT NULL,
+  result VARCHAR(10) NOT NULL,
+  message VARCHAR(1000) NOT NULL,
+  details JSON,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  FOREIGN KEY (revision_id) REFERENCES pc_build_revisions(id),
+  FOREIGN KEY (rule_id) REFERENCES compatibility_rules(id),
+  CHECK (result IN ('PASS','WARNING','FAIL','UNKNOWN'))
+) ENGINE=InnoDB;
+CREATE TABLE build_item_alternatives (
+  build_item_id BIGINT NOT NULL,
+  variant_id BIGINT NOT NULL,
+  price_difference DECIMAL(19,2) NOT NULL,
+  reason VARCHAR(1000) NOT NULL,
+  validation_status VARCHAR(10) NOT NULL,
+  PRIMARY KEY (build_item_id, variant_id),
+  FOREIGN KEY (build_item_id) REFERENCES pc_build_items(id),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  CHECK (validation_status IN ('PASS','WARNING','FAIL','UNKNOWN'))
+) ENGINE=InnoDB;
+CREATE TABLE build_share_links (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  revision_id BIGINT NOT NULL,
+  token_hash BINARY(32) NOT NULL UNIQUE,
+  expires_at DATETIME(6),
+  revoked_at DATETIME(6),
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  FOREIGN KEY (revision_id) REFERENCES pc_build_revisions(id)
+) ENGINE=InnoDB;
+
+-- ================================================================
+-- 06. VERSIONED PROMOTION RULES / COUPONS
+-- Published versions are immutable at the service layer.
+-- ================================================================
+CREATE TABLE promotions (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(60) NOT NULL UNIQUE,
+  name VARCHAR(200) NOT NULL,
+  description TEXT,
+  status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+  created_by BIGINT NOT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  FOREIGN KEY (created_by) REFERENCES users(id),
+  CHECK (status IN ('DRAFT','SCHEDULED','ACTIVE','PAUSED','ENDED','ARCHIVED'))
+) ENGINE=InnoDB;
+CREATE TABLE promotion_versions (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  promotion_id BIGINT NOT NULL,
+  version_no INT NOT NULL,
+  starts_at DATETIME(6) NOT NULL,
+  ends_at DATETIME(6) NOT NULL,
+  priority INT NOT NULL DEFAULT 0,
+  stacking_policy VARCHAR(20) NOT NULL DEFAULT 'EXCLUSIVE',
+  stacking_group VARCHAR(60),
+  threshold_basis VARCHAR(30) NOT NULL DEFAULT 'ELIGIBLE_GROSS_PRE_DISCOUNT',
+  currency_code CHAR(3) NOT NULL DEFAULT 'VND',
+  budget_limit DECIMAL(19,2),
+  global_usage_limit INT,
+  per_customer_limit INT,
+  max_applications_per_order INT NOT NULL DEFAULT 1,
+  requires_coupon BOOLEAN NOT NULL DEFAULT FALSE,
+  rules_schema_version INT NOT NULL DEFAULT 1,
+  published_at DATETIME(6),
+  UNIQUE KEY uk_promotion_version (promotion_id, version_no),
+  KEY ix_promotion_window (starts_at, ends_at),
+  FOREIGN KEY (promotion_id) REFERENCES promotions(id),
+  CHECK (version_no > 0 AND ends_at > starts_at),
+  CHECK (stacking_policy IN ('EXCLUSIVE','STACKABLE','BEST_OF_GROUP')),
+  CHECK (stacking_policy <> 'BEST_OF_GROUP' OR stacking_group IS NOT NULL),
+  CHECK (threshold_basis IN ('ELIGIBLE_GROSS_PRE_DISCOUNT','ELIGIBLE_GROSS_POST_ITEM')),
+  CHECK (budget_limit >= 0 AND global_usage_limit > 0 AND per_customer_limit > 0),
+  CHECK (max_applications_per_order > 0)
+) ENGINE=InnoDB;
+CREATE TABLE promotion_condition_groups (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  promotion_version_id BIGINT NOT NULL,
+  parent_group_id BIGINT,
+  logical_operator VARCHAR(3) NOT NULL DEFAULT 'AND',
+  root_version_id BIGINT GENERATED ALWAYS AS (CASE WHEN parent_group_id IS NULL THEN promotion_version_id ELSE NULL END) STORED,
+  UNIQUE KEY uk_promotion_root (root_version_id),
+  UNIQUE KEY uk_condition_group_pair (promotion_version_id, id),
+  FOREIGN KEY (promotion_version_id) REFERENCES promotion_versions(id),
+  FOREIGN KEY (promotion_version_id, parent_group_id) REFERENCES promotion_condition_groups(promotion_version_id, id),
+  CHECK (logical_operator IN ('AND','OR'))
+) ENGINE=InnoDB;
+CREATE TABLE promotion_conditions (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  group_id BIGINT NOT NULL,
+  condition_type VARCHAR(30) NOT NULL,
+  comparison_operator VARCHAR(15) NOT NULL,
+  configuration JSON NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  FOREIGN KEY (group_id) REFERENCES promotion_condition_groups(id),
+  CHECK (condition_type IN ('ORDER_AMOUNT','ITEM_QUANTITY','CUSTOMER_GROUP','FIRST_ORDER','SHIPPING_REGION','PAYMENT_METHOD')),
+  CHECK (comparison_operator IN ('EQ','NE','GT','GTE','LT','LTE','IN','NOT_IN','BETWEEN'))
+) ENGINE=InnoDB;
+CREATE TABLE promotion_actions (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  promotion_version_id BIGINT NOT NULL,
+  action_type VARCHAR(25) NOT NULL,
+  amount DECIMAL(19,2),
+  percent_value DECIMAL(5,2),
+  max_discount DECIMAL(19,2),
+  gift_quantity INT,
+  configuration JSON NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  FOREIGN KEY (promotion_version_id) REFERENCES promotion_versions(id),
+  CHECK (action_type IN ('FIXED_DISCOUNT','PERCENT_DISCOUNT','GIFT','FREE_SHIPPING','SHIPPING_DISCOUNT')),
+  CHECK (amount >= 0 AND percent_value BETWEEN 0 AND 100 AND max_discount >= 0 AND gift_quantity > 0),
+  CHECK (action_type NOT IN ('FIXED_DISCOUNT','SHIPPING_DISCOUNT') OR amount IS NOT NULL),
+  CHECK (action_type <> 'PERCENT_DISCOUNT' OR percent_value IS NOT NULL),
+  CHECK (action_type <> 'GIFT' OR gift_quantity IS NOT NULL)
+) ENGINE=InnoDB;
+CREATE TABLE promotion_targets (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  promotion_version_id BIGINT NOT NULL,
+  selector_key VARCHAR(60) NOT NULL,
+  target_role VARCHAR(10) NOT NULL DEFAULT 'INCLUDE',
+  variant_id BIGINT,
+  category_id BIGINT,
+  customer_group_id BIGINT,
+  FOREIGN KEY (promotion_version_id) REFERENCES promotion_versions(id),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (category_id) REFERENCES categories(id),
+  FOREIGN KEY (customer_group_id) REFERENCES customer_groups(id),
+  KEY ix_promotion_selector (promotion_version_id, selector_key),
+  CHECK (target_role IN ('INCLUDE','EXCLUDE','GIFT')),
+  CHECK ((variant_id IS NOT NULL) + (category_id IS NOT NULL) + (customer_group_id IS NOT NULL) = 1)
+) ENGINE=InnoDB;
+CREATE TABLE promotion_exclusions (
+  promotion_id BIGINT NOT NULL,
+  excluded_promotion_id BIGINT NOT NULL,
+  PRIMARY KEY (promotion_id, excluded_promotion_id),
+  FOREIGN KEY (promotion_id) REFERENCES promotions(id),
+  FOREIGN KEY (excluded_promotion_id) REFERENCES promotions(id),
+  CHECK (promotion_id < excluded_promotion_id)
+) ENGINE=InnoDB;
+CREATE TABLE coupons (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  promotion_version_id BIGINT NOT NULL,
+  code VARCHAR(80) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL UNIQUE,
+  assigned_user_id BIGINT,
+  starts_at DATETIME(6) NOT NULL,
+  expires_at DATETIME(6) NOT NULL,
+  max_uses INT,
+  per_customer_limit INT,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  FOREIGN KEY (promotion_version_id) REFERENCES promotion_versions(id),
+  FOREIGN KEY (assigned_user_id) REFERENCES users(id),
+  CHECK (expires_at > starts_at),
+  CHECK (max_uses > 0 AND per_customer_limit > 0)
+) ENGINE=InnoDB;
+CREATE TABLE promotion_usage_counters (
+  promotion_version_id BIGINT NOT NULL PRIMARY KEY,
+  reserved_uses INT NOT NULL DEFAULT 0,
+  redeemed_uses INT NOT NULL DEFAULT 0,
+  reserved_amount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  redeemed_amount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  version BIGINT NOT NULL DEFAULT 0,
+  FOREIGN KEY (promotion_version_id) REFERENCES promotion_versions(id),
+  CHECK (reserved_uses >= 0 AND redeemed_uses >= 0 AND reserved_amount >= 0 AND redeemed_amount >= 0)
+) ENGINE=InnoDB;
+
+-- ================================================================
+-- 07. CART / QUOTE / ORDER
+-- Prices are tax-inclusive. tax_amount is informational, not added twice.
+-- total = gross items - item/order discounts + net shipping + net services.
+-- ================================================================
+CREATE TABLE carts (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT,
+  guest_token_hash BINARY(32),
+  status VARCHAR(15) NOT NULL DEFAULT 'ACTIVE',
+  currency_code CHAR(3) NOT NULL DEFAULT 'VND',
+  expires_at DATETIME(6),
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  version BIGINT NOT NULL DEFAULT 0,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  KEY ix_cart_owner (user_id, status),
+  KEY ix_cart_guest (guest_token_hash, status),
+  CHECK ((user_id IS NOT NULL) + (guest_token_hash IS NOT NULL) = 1),
+  CHECK (status IN ('ACTIVE','CONVERTED','ABANDONED'))
+) ENGINE=InnoDB;
+CREATE TABLE cart_items (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  cart_id BIGINT NOT NULL,
+  variant_id BIGINT NOT NULL,
+  build_revision_id BIGINT,
+  build_group_key CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
+  quantity INT NOT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  FOREIGN KEY (cart_id) REFERENCES carts(id),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (build_revision_id) REFERENCES pc_build_revisions(id),
+  CHECK (quantity > 0)
+) ENGINE=InnoDB;
+CREATE TABLE service_catalog (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(60) NOT NULL UNIQUE,
+  name VARCHAR(200) NOT NULL,
+  description TEXT,
+  price DECIMAL(19,2) NOT NULL,
+  currency_code CHAR(3) NOT NULL DEFAULT 'VND',
+  tax_rate DECIMAL(5,2) NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  CHECK (price >= 0 AND tax_rate BETWEEN 0 AND 100)
+) ENGINE=InnoDB;
+CREATE TABLE shipping_providers (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(40) NOT NULL UNIQUE,
+  name VARCHAR(150) NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE
+) ENGINE=InnoDB;
+CREATE TABLE shipping_methods (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  provider_id BIGINT NOT NULL,
+  code VARCHAR(60) NOT NULL,
+  name VARCHAR(150) NOT NULL,
+  supports_cod BOOLEAN NOT NULL DEFAULT FALSE,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  UNIQUE KEY uk_shipping_method (provider_id, code),
+  FOREIGN KEY (provider_id) REFERENCES shipping_providers(id)
+) ENGINE=InnoDB;
+CREATE TABLE shipping_rate_rules (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  shipping_method_id BIGINT NOT NULL,
+  priority INT NOT NULL DEFAULT 0,
+  conditions JSON NOT NULL,
+  base_fee DECIMAL(19,2) NOT NULL,
+  additional_fee_config JSON,
+  starts_at DATETIME(6),
+  ends_at DATETIME(6),
+  FOREIGN KEY (shipping_method_id) REFERENCES shipping_methods(id),
+  CHECK (base_fee >= 0),
+  CHECK (ends_at > starts_at)
+) ENGINE=InnoDB;
+CREATE TABLE shipping_quotes (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  cart_id BIGINT NOT NULL,
+  shipping_method_id BIGINT NOT NULL,
+  fee DECIMAL(19,2) NOT NULL,
+  currency_code CHAR(3) NOT NULL DEFAULT 'VND',
+  destination_snapshot JSON NOT NULL,
+  package_snapshot JSON NOT NULL,
+  provider_reference VARCHAR(150),
+  estimated_delivery_from DATETIME(6),
+  estimated_delivery_to DATETIME(6),
+  expires_at DATETIME(6) NOT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  FOREIGN KEY (cart_id) REFERENCES carts(id),
+  FOREIGN KEY (shipping_method_id) REFERENCES shipping_methods(id),
+  CHECK (fee >= 0)
+) ENGINE=InnoDB;
+CREATE TABLE checkout_quotes (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  cart_id BIGINT NOT NULL,
+  shipping_quote_id BIGINT,
+  coupon_id BIGINT,
+  currency_code CHAR(3) NOT NULL DEFAULT 'VND',
+  subtotal DECIMAL(19,2) NOT NULL,
+  discount_amount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  shipping_fee DECIMAL(19,2) NOT NULL DEFAULT 0,
+  shipping_discount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  service_amount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  tax_amount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  grand_total DECIMAL(19,2) NOT NULL,
+  pricing_snapshot JSON NOT NULL,
+  expires_at DATETIME(6) NOT NULL,
+  status VARCHAR(15) NOT NULL DEFAULT 'ACTIVE',
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  FOREIGN KEY (cart_id) REFERENCES carts(id),
+  FOREIGN KEY (shipping_quote_id) REFERENCES shipping_quotes(id),
+  FOREIGN KEY (coupon_id) REFERENCES coupons(id),
+  CHECK (subtotal >= 0 AND discount_amount BETWEEN 0 AND subtotal),
+  CHECK (shipping_fee >= 0 AND shipping_discount BETWEEN 0 AND shipping_fee),
+  CHECK (service_amount >= 0 AND tax_amount >= 0 AND grand_total >= 0),
+  CHECK (grand_total = subtotal - discount_amount + shipping_fee - shipping_discount + service_amount),
+  CHECK (status IN ('ACTIVE','CONSUMED','EXPIRED','INVALIDATED'))
+) ENGINE=InnoDB;
+CREATE TABLE checkout_quote_items (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  quote_id BIGINT NOT NULL,
+  variant_id BIGINT NOT NULL,
+  quantity INT NOT NULL,
+  unit_price DECIMAL(19,2) NOT NULL,
+  discount_amount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  is_gift BOOLEAN NOT NULL DEFAULT FALSE,
+  item_snapshot JSON NOT NULL,
+  FOREIGN KEY (quote_id) REFERENCES checkout_quotes(id),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  CHECK (quantity > 0 AND unit_price >= 0),
+  CHECK (discount_amount BETWEEN 0 AND unit_price * quantity)
+) ENGINE=InnoDB;
+CREATE TABLE orders (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  order_number VARCHAR(50) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+  user_id BIGINT,
+  checkout_quote_id BIGINT UNIQUE,
+  customer_email VARCHAR(254) NOT NULL,
+  customer_phone VARCHAR(25) NOT NULL,
+  order_status VARCHAR(25) NOT NULL DEFAULT 'PENDING_CONFIRMATION',
+  payment_status VARCHAR(25) NOT NULL DEFAULT 'UNPAID',
+  fulfillment_status VARCHAR(25) NOT NULL DEFAULT 'UNFULFILLED',
+  currency_code CHAR(3) NOT NULL DEFAULT 'VND',
+  subtotal DECIMAL(19,2) NOT NULL,
+  discount_amount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  shipping_fee DECIMAL(19,2) NOT NULL DEFAULT 0,
+  shipping_discount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  service_amount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  tax_amount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  grand_total DECIMAL(19,2) NOT NULL,
+  customer_note VARCHAR(2000),
+  invoice_snapshot JSON,
+  placed_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  confirmed_at DATETIME(6),
+  completed_at DATETIME(6),
+  cancelled_at DATETIME(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  version BIGINT NOT NULL DEFAULT 0,
+  KEY ix_order_user_date (user_id, placed_at),
+  KEY ix_order_status_date (order_status, placed_at),
+  KEY ix_order_payment_date (payment_status, placed_at),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (checkout_quote_id) REFERENCES checkout_quotes(id),
+  CHECK (order_status IN ('PENDING_CONFIRMATION','CONFIRMED','PROCESSING','COMPLETED','CANCELLED')),
+  CHECK (payment_status IN ('UNPAID','PENDING','PARTIALLY_PAID','PAID','PARTIALLY_REFUNDED','REFUNDED','FAILED')),
+  CHECK (fulfillment_status IN ('UNFULFILLED','PARTIAL','SHIPPED','DELIVERED','FAILED','RETURNED')),
+  CHECK (subtotal >= 0 AND discount_amount BETWEEN 0 AND subtotal),
+  CHECK (shipping_fee >= 0 AND shipping_discount BETWEEN 0 AND shipping_fee),
+  CHECK (service_amount >= 0 AND tax_amount >= 0 AND grand_total >= 0),
+  CHECK (grand_total = subtotal - discount_amount + shipping_fee - shipping_discount + service_amount)
+) ENGINE=InnoDB;
+CREATE TABLE order_addresses (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT NOT NULL,
+  address_type VARCHAR(10) NOT NULL,
+  recipient_name VARCHAR(150) NOT NULL,
+  phone VARCHAR(25) NOT NULL,
+  country_code CHAR(2) NOT NULL DEFAULT 'VN',
+  province_name VARCHAR(100) NOT NULL,
+  district_name VARCHAR(100),
+  ward_name VARCHAR(100),
+  address_line VARCHAR(500) NOT NULL,
+  postal_code VARCHAR(20),
+  provider_location_snapshot JSON,
+  UNIQUE KEY uk_order_address (order_id, address_type),
+  FOREIGN KEY (order_id) REFERENCES orders(id),
+  CHECK (address_type IN ('SHIPPING','BILLING'))
+) ENGINE=InnoDB;
+CREATE TABLE order_items (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT NOT NULL,
+  variant_id BIGINT NOT NULL,
+  build_revision_id BIGINT,
+  build_group_key CHAR(36) CHARACTER SET ascii COLLATE ascii_bin,
+  sku_snapshot VARCHAR(80) NOT NULL,
+  name_snapshot VARCHAR(255) NOT NULL,
+  spec_snapshot JSON,
+  warranty_policy_snapshot JSON,
+  quantity INT NOT NULL,
+  unit_price DECIMAL(19,2) NOT NULL,
+  discount_amount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  tax_rate DECIMAL(5,2) NOT NULL DEFAULT 0,
+  tax_amount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  unit_cost DECIMAL(19,2),
+  is_gift BOOLEAN NOT NULL DEFAULT FALSE,
+  requires_serial BOOLEAN NOT NULL DEFAULT FALSE,
+  line_total DECIMAL(19,2) GENERATED ALWAYS AS (quantity * unit_price - discount_amount) STORED,
+  UNIQUE KEY uk_order_item_pair (order_id, id),
+  FOREIGN KEY (order_id) REFERENCES orders(id),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (build_revision_id) REFERENCES pc_build_revisions(id),
+  CHECK (quantity > 0 AND unit_price >= 0 AND unit_cost >= 0),
+  CHECK (discount_amount BETWEEN 0 AND quantity * unit_price),
+  CHECK (tax_rate BETWEEN 0 AND 100 AND tax_amount >= 0)
+) ENGINE=InnoDB;
+CREATE TABLE order_services (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT NOT NULL,
+  service_id BIGINT NOT NULL,
+  name_snapshot VARCHAR(200) NOT NULL,
+  quantity INT NOT NULL DEFAULT 1,
+  unit_price DECIMAL(19,2) NOT NULL,
+  tax_amount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  FOREIGN KEY (order_id) REFERENCES orders(id),
+  FOREIGN KEY (service_id) REFERENCES service_catalog(id),
+  CHECK (quantity > 0 AND unit_price >= 0 AND tax_amount >= 0),
+  CHECK (status IN ('PENDING','IN_PROGRESS','COMPLETED','CANCELLED'))
+) ENGINE=InnoDB;
+CREATE TABLE order_status_history (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT NOT NULL,
+  status_domain VARCHAR(15) NOT NULL,
+  from_status VARCHAR(30),
+  to_status VARCHAR(30) NOT NULL,
+  changed_by BIGINT,
+  reason VARCHAR(1000),
+  is_customer_visible BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  KEY ix_order_history (order_id, created_at),
+  FOREIGN KEY (order_id) REFERENCES orders(id),
+  FOREIGN KEY (changed_by) REFERENCES users(id),
+  CHECK (status_domain IN ('ORDER','PAYMENT','FULFILLMENT'))
+) ENGINE=InnoDB;
+CREATE TABLE order_item_serials (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  order_item_id BIGINT NOT NULL,
+  serial_unit_id BIGINT NOT NULL,
+  allocated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  delivered_at DATETIME(6),
+  released_at DATETIME(6),
+  release_reason VARCHAR(255),
+  active_serial_id BIGINT GENERATED ALWAYS AS (CASE WHEN released_at IS NULL THEN serial_unit_id ELSE NULL END) STORED,
+  UNIQUE KEY uk_active_serial_allocation (active_serial_id),
+  FOREIGN KEY (order_item_id) REFERENCES order_items(id),
+  FOREIGN KEY (serial_unit_id) REFERENCES serial_units(id),
+  CHECK (released_at IS NULL OR released_at >= allocated_at)
+) ENGINE=InnoDB;
+CREATE TABLE stock_reservations (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  inventory_balance_id BIGINT NOT NULL,
+  quote_item_id BIGINT,
+  order_item_id BIGINT,
+  quantity INT NOT NULL,
+  status VARCHAR(15) NOT NULL DEFAULT 'ACTIVE',
+  expires_at DATETIME(6) NOT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  KEY ix_reservation_expiry (status, expires_at),
+  FOREIGN KEY (inventory_balance_id) REFERENCES inventory_balances(id),
+  FOREIGN KEY (quote_item_id) REFERENCES checkout_quote_items(id),
+  FOREIGN KEY (order_item_id) REFERENCES order_items(id),
+  CHECK (quote_item_id IS NOT NULL OR order_item_id IS NOT NULL),
+  CHECK (quantity > 0),
+  CHECK (status IN ('ACTIVE','CONSUMED','RELEASED','EXPIRED'))
+) ENGINE=InnoDB;
+CREATE TABLE promotion_usage_reservations (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  promotion_version_id BIGINT NOT NULL,
+  coupon_id BIGINT,
+  quote_id BIGINT NOT NULL,
+  user_id BIGINT,
+  customer_key BINARY(32) NOT NULL,
+  reserved_amount DECIMAL(19,2) NOT NULL,
+  status VARCHAR(15) NOT NULL DEFAULT 'ACTIVE',
+  expires_at DATETIME(6) NOT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_promotion_quote (promotion_version_id, quote_id),
+  KEY ix_promo_reservation_expiry (status, expires_at),
+  KEY ix_promo_customer_reserved (promotion_version_id, customer_key, status),
+  FOREIGN KEY (promotion_version_id) REFERENCES promotion_versions(id),
+  FOREIGN KEY (coupon_id) REFERENCES coupons(id),
+  FOREIGN KEY (quote_id) REFERENCES checkout_quotes(id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  CHECK (reserved_amount >= 0),
+  CHECK (status IN ('ACTIVE','CONSUMED','RELEASED','EXPIRED'))
+) ENGINE=InnoDB;
+CREATE TABLE promotion_redemptions (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  promotion_version_id BIGINT NOT NULL,
+  coupon_id BIGINT,
+  order_id BIGINT NOT NULL,
+  reservation_id BIGINT UNIQUE,
+  user_id BIGINT,
+  customer_key BINARY(32) NOT NULL,
+  benefit_amount DECIMAL(19,2) NOT NULL,
+  status VARCHAR(15) NOT NULL DEFAULT 'APPLIED',
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  reversed_at DATETIME(6),
+  UNIQUE KEY uk_promotion_order_use (promotion_version_id, order_id),
+  KEY ix_promo_customer_used (promotion_version_id, customer_key, status),
+  FOREIGN KEY (promotion_version_id) REFERENCES promotion_versions(id),
+  FOREIGN KEY (coupon_id) REFERENCES coupons(id),
+  FOREIGN KEY (order_id) REFERENCES orders(id),
+  FOREIGN KEY (reservation_id) REFERENCES promotion_usage_reservations(id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  CHECK (benefit_amount >= 0),
+  CHECK (status IN ('APPLIED','REVERSED'))
+) ENGINE=InnoDB;
+CREATE TABLE order_promotions (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT NOT NULL,
+  promotion_version_id BIGINT NOT NULL,
+  coupon_code_snapshot VARCHAR(80),
+  name_snapshot VARCHAR(200) NOT NULL,
+  rule_snapshot JSON NOT NULL,
+  item_discount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  shipping_discount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  gift_value DECIMAL(19,2) NOT NULL DEFAULT 0,
+  UNIQUE KEY uk_order_promotion (order_id, promotion_version_id),
+  FOREIGN KEY (order_id) REFERENCES orders(id),
+  FOREIGN KEY (promotion_version_id) REFERENCES promotion_versions(id),
+  CHECK (item_discount >= 0 AND shipping_discount >= 0 AND gift_value >= 0)
+) ENGINE=InnoDB;
+CREATE TABLE order_discount_allocations (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  order_promotion_id BIGINT NOT NULL,
+  order_item_id BIGINT NOT NULL,
+  discount_amount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  gift_quantity INT NOT NULL DEFAULT 0,
+  allocation_snapshot JSON,
+  UNIQUE KEY uk_discount_allocation (order_promotion_id, order_item_id),
+  FOREIGN KEY (order_promotion_id) REFERENCES order_promotions(id),
+  FOREIGN KEY (order_item_id) REFERENCES order_items(id),
+  CHECK (discount_amount >= 0 AND gift_quantity >= 0)
+) ENGINE=InnoDB;
+
+-- ================================================================
+-- 08. SHIPPING / RETURNS
+-- ================================================================
+CREATE TABLE shipments (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT NOT NULL,
+  warehouse_id BIGINT NOT NULL,
+  shipping_method_id BIGINT NOT NULL,
+  tracking_number VARCHAR(150) CHARACTER SET ascii COLLATE ascii_bin,
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  actual_fee DECIMAL(19,2),
+  cod_amount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  shipped_at DATETIME(6),
+  delivered_at DATETIME(6),
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_shipment_tracking (shipping_method_id, tracking_number),
+  FOREIGN KEY (order_id) REFERENCES orders(id),
+  FOREIGN KEY (warehouse_id) REFERENCES warehouses(id),
+  FOREIGN KEY (shipping_method_id) REFERENCES shipping_methods(id),
+  CHECK (status IN ('PENDING','READY','SHIPPED','DELIVERED','FAILED','RETURNED','CANCELLED')),
+  CHECK (actual_fee >= 0 AND cod_amount >= 0)
+) ENGINE=InnoDB;
+CREATE TABLE shipment_items (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  shipment_id BIGINT NOT NULL,
+  order_item_id BIGINT NOT NULL,
+  quantity INT NOT NULL,
+  UNIQUE KEY uk_shipment_item (shipment_id, order_item_id),
+  FOREIGN KEY (shipment_id) REFERENCES shipments(id),
+  FOREIGN KEY (order_item_id) REFERENCES order_items(id),
+  CHECK (quantity > 0)
+) ENGINE=InnoDB;
+CREATE TABLE shipment_item_serials (
+  shipment_item_id BIGINT NOT NULL,
+  order_item_serial_id BIGINT NOT NULL,
+  PRIMARY KEY (shipment_item_id, order_item_serial_id),
+  FOREIGN KEY (shipment_item_id) REFERENCES shipment_items(id),
+  FOREIGN KEY (order_item_serial_id) REFERENCES order_item_serials(id)
+) ENGINE=InnoDB;
+CREATE TABLE shipment_tracking_events (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  shipment_id BIGINT NOT NULL,
+  provider_event_id VARCHAR(150) CHARACTER SET ascii COLLATE ascii_bin,
+  status VARCHAR(50) NOT NULL,
+  description VARCHAR(1000),
+  location VARCHAR(255),
+  occurred_at DATETIME(6) NOT NULL,
+  received_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_shipment_event (shipment_id, provider_event_id),
+  FOREIGN KEY (shipment_id) REFERENCES shipments(id)
+) ENGINE=InnoDB;
+CREATE TABLE return_requests (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(50) NOT NULL UNIQUE,
+  order_id BIGINT NOT NULL,
+  user_id BIGINT,
+  status VARCHAR(20) NOT NULL DEFAULT 'REQUESTED',
+  reason VARCHAR(1000) NOT NULL,
+  requested_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  resolved_at DATETIME(6),
+  FOREIGN KEY (order_id) REFERENCES orders(id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  CHECK (status IN ('REQUESTED','APPROVED','REJECTED','RECEIVED','INSPECTING','COMPLETED','CANCELLED'))
+) ENGINE=InnoDB;
+CREATE TABLE return_request_items (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  return_request_id BIGINT NOT NULL,
+  order_item_id BIGINT NOT NULL,
+  quantity INT NOT NULL,
+  requested_resolution VARCHAR(15) NOT NULL,
+  received_condition VARCHAR(20),
+  inspection_notes TEXT,
+  FOREIGN KEY (return_request_id) REFERENCES return_requests(id),
+  FOREIGN KEY (order_item_id) REFERENCES order_items(id),
+  CHECK (quantity > 0),
+  CHECK (requested_resolution IN ('REFUND','EXCHANGE')),
+  CHECK (received_condition IN ('SELLABLE','QUARANTINE','DAMAGED'))
+) ENGINE=InnoDB;
+CREATE TABLE return_item_serials (
+  return_item_id BIGINT NOT NULL,
+  order_item_serial_id BIGINT NOT NULL,
+  PRIMARY KEY (return_item_id, order_item_serial_id),
+  FOREIGN KEY (return_item_id) REFERENCES return_request_items(id),
+  FOREIGN KEY (order_item_serial_id) REFERENCES order_item_serials(id)
+) ENGINE=InnoDB;
+
+-- ================================================================
+-- 09. WARRANTY / MAINTENANCE
+-- ================================================================
+CREATE TABLE warranty_policies (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(60) NOT NULL,
+  policy_version INT NOT NULL,
+  name VARCHAR(200) NOT NULL,
+  duration_months INT NOT NULL,
+  start_event VARCHAR(20) NOT NULL DEFAULT 'DELIVERED',
+  provider_type VARCHAR(20) NOT NULL,
+  terms TEXT NOT NULL,
+  replacement_policy VARCHAR(30) NOT NULL DEFAULT 'REMAINING_TERM',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  UNIQUE KEY uk_warranty_policy_version (code, policy_version),
+  CHECK (policy_version > 0 AND duration_months >= 0),
+  CHECK (start_event IN ('DELIVERED','PURCHASED','ACTIVATED')),
+  CHECK (provider_type IN ('STORE','MANUFACTURER','SUPPLIER')),
+  CHECK (replacement_policy IN ('REMAINING_TERM','RESTART_TERM','CUSTOM'))
+) ENGINE=InnoDB;
+CREATE TABLE variant_warranty_policies (
+  variant_id BIGINT NOT NULL,
+  policy_id BIGINT NOT NULL,
+  PRIMARY KEY (variant_id, policy_id),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (policy_id) REFERENCES warranty_policies(id)
+) ENGINE=InnoDB;
+CREATE TABLE warranty_entitlements (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  serial_unit_id BIGINT NOT NULL,
+  order_item_serial_id BIGINT,
+  policy_id BIGINT NOT NULL,
+  owner_user_id BIGINT,
+  policy_snapshot JSON NOT NULL,
+  starts_at DATETIME(6) NOT NULL,
+  ends_at DATETIME(6) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_entitlement_sale_policy (order_item_serial_id, policy_id),
+  KEY ix_warranty_serial (serial_unit_id, ends_at),
+  FOREIGN KEY (serial_unit_id) REFERENCES serial_units(id),
+  FOREIGN KEY (order_item_serial_id) REFERENCES order_item_serials(id),
+  FOREIGN KEY (policy_id) REFERENCES warranty_policies(id),
+  FOREIGN KEY (owner_user_id) REFERENCES users(id),
+  CHECK (ends_at >= starts_at),
+  CHECK (status IN ('ACTIVE','VOID','TRANSFERRED'))
+) ENGINE=InnoDB;
+CREATE TABLE warranty_claims (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  claim_number VARCHAR(50) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+  user_id BIGINT,
+  claim_type VARCHAR(15) NOT NULL,
+  contact_name VARCHAR(150) NOT NULL,
+  contact_email VARCHAR(254),
+  contact_phone VARCHAR(25) NOT NULL,
+  return_address_snapshot JSON,
+  problem_description TEXT NOT NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'SUBMITTED',
+  assigned_technician_id BIGINT,
+  intake_warehouse_id BIGINT,
+  submitted_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  received_at DATETIME(6),
+  due_at DATETIME(6),
+  completed_at DATETIME(6),
+  returned_at DATETIME(6),
+  version BIGINT NOT NULL DEFAULT 0,
+  KEY ix_claim_queue (status, due_at),
+  KEY ix_claim_user (user_id, submitted_at),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (assigned_technician_id) REFERENCES users(id),
+  FOREIGN KEY (intake_warehouse_id) REFERENCES warehouses(id),
+  CHECK (claim_type IN ('WARRANTY','MAINTENANCE')),
+  CHECK (status IN ('SUBMITTED','AWAITING_PRODUCT','RECEIVED','DIAGNOSING','AWAITING_APPROVAL','WAITING_PARTS','SENT_TO_VENDOR','REPAIRING','REPLACING','COMPLETED','RETURNED','REJECTED','CANCELLED'))
+) ENGINE=InnoDB;
+CREATE TABLE warranty_claim_items (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  claim_id BIGINT NOT NULL,
+  serial_unit_id BIGINT NOT NULL,
+  entitlement_id BIGINT,
+  reported_issue TEXT NOT NULL,
+  intake_condition TEXT,
+  accessories_received JSON,
+  resolution VARCHAR(25),
+  UNIQUE KEY uk_claim_serial (claim_id, serial_unit_id),
+  FOREIGN KEY (claim_id) REFERENCES warranty_claims(id),
+  FOREIGN KEY (serial_unit_id) REFERENCES serial_units(id),
+  FOREIGN KEY (entitlement_id) REFERENCES warranty_entitlements(id),
+  CHECK (resolution IN ('REPAIRED','REPLACED','NO_FAULT','REJECTED','UNREPAIRABLE'))
+) ENGINE=InnoDB;
+CREATE TABLE warranty_attachments (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  claim_id BIGINT NOT NULL,
+  uploaded_by BIGINT,
+  storage_key VARCHAR(500) NOT NULL,
+  original_filename VARCHAR(255) NOT NULL,
+  mime_type VARCHAR(100) NOT NULL,
+  file_size BIGINT NOT NULL,
+  visibility VARCHAR(10) NOT NULL DEFAULT 'CUSTOMER',
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  FOREIGN KEY (claim_id) REFERENCES warranty_claims(id),
+  FOREIGN KEY (uploaded_by) REFERENCES users(id),
+  CHECK (file_size >= 0),
+  CHECK (visibility IN ('CUSTOMER','INTERNAL'))
+) ENGINE=InnoDB;
+CREATE TABLE warranty_status_history (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  claim_id BIGINT NOT NULL,
+  from_status VARCHAR(30),
+  to_status VARCHAR(30) NOT NULL,
+  changed_by BIGINT,
+  note TEXT,
+  is_customer_visible BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  KEY ix_warranty_history (claim_id, created_at),
+  FOREIGN KEY (claim_id) REFERENCES warranty_claims(id),
+  FOREIGN KEY (changed_by) REFERENCES users(id)
+) ENGINE=InnoDB;
+CREATE TABLE warranty_messages (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  claim_id BIGINT NOT NULL,
+  author_user_id BIGINT,
+  author_type VARCHAR(15) NOT NULL,
+  visibility VARCHAR(10) NOT NULL DEFAULT 'CUSTOMER',
+  body TEXT NOT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  FOREIGN KEY (claim_id) REFERENCES warranty_claims(id),
+  FOREIGN KEY (author_user_id) REFERENCES users(id),
+  CHECK (author_type IN ('CUSTOMER','STAFF','SYSTEM')),
+  CHECK (visibility IN ('CUSTOMER','INTERNAL'))
+) ENGINE=InnoDB;
+CREATE TABLE repair_jobs (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  claim_item_id BIGINT NOT NULL,
+  technician_id BIGINT NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  diagnosis TEXT,
+  work_performed TEXT,
+  test_result TEXT,
+  vendor_reference VARCHAR(150),
+  started_at DATETIME(6),
+  finished_at DATETIME(6),
+  FOREIGN KEY (claim_item_id) REFERENCES warranty_claim_items(id),
+  FOREIGN KEY (technician_id) REFERENCES users(id),
+  CHECK (status IN ('PENDING','IN_PROGRESS','WAITING','COMPLETED','CANCELLED'))
+) ENGINE=InnoDB;
+CREATE TABLE repair_parts (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  repair_job_id BIGINT NOT NULL,
+  variant_id BIGINT NOT NULL,
+  serial_unit_id BIGINT,
+  warehouse_id BIGINT NOT NULL,
+  quantity INT NOT NULL,
+  unit_cost DECIMAL(19,2) NOT NULL,
+  FOREIGN KEY (repair_job_id) REFERENCES repair_jobs(id),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (serial_unit_id) REFERENCES serial_units(id),
+  FOREIGN KEY (warehouse_id) REFERENCES warehouses(id),
+  CHECK (quantity > 0 AND unit_cost >= 0),
+  CHECK (serial_unit_id IS NULL OR quantity = 1)
+) ENGINE=InnoDB;
+CREATE TABLE repair_estimates (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  claim_id BIGINT NOT NULL,
+  version_no INT NOT NULL,
+  currency_code CHAR(3) NOT NULL DEFAULT 'VND',
+  total_amount DECIMAL(19,2) NOT NULL,
+  tax_amount DECIMAL(19,2) NOT NULL DEFAULT 0,
+  status VARCHAR(15) NOT NULL DEFAULT 'DRAFT',
+  expires_at DATETIME(6) NOT NULL,
+  accepted_at DATETIME(6),
+  acceptance_evidence JSON,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_repair_estimate_version (claim_id, version_no),
+  FOREIGN KEY (claim_id) REFERENCES warranty_claims(id),
+  CHECK (version_no > 0 AND total_amount >= 0 AND tax_amount >= 0),
+  CHECK (status IN ('DRAFT','SENT','ACCEPTED','REJECTED','EXPIRED','SUPERSEDED'))
+) ENGINE=InnoDB;
+CREATE TABLE repair_estimate_items (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  estimate_id BIGINT NOT NULL,
+  variant_id BIGINT,
+  description VARCHAR(500) NOT NULL,
+  quantity INT NOT NULL,
+  unit_price DECIMAL(19,2) NOT NULL,
+  FOREIGN KEY (estimate_id) REFERENCES repair_estimates(id),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  CHECK (quantity > 0 AND unit_price >= 0)
+) ENGINE=InnoDB;
+CREATE TABLE warranty_replacements (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  claim_item_id BIGINT NOT NULL,
+  old_serial_unit_id BIGINT NOT NULL,
+  new_serial_unit_id BIGINT NOT NULL,
+  new_entitlement_id BIGINT,
+  policy_snapshot JSON NOT NULL,
+  reason VARCHAR(1000) NOT NULL,
+  replaced_by BIGINT NOT NULL,
+  replaced_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  FOREIGN KEY (claim_item_id) REFERENCES warranty_claim_items(id),
+  FOREIGN KEY (old_serial_unit_id) REFERENCES serial_units(id),
+  FOREIGN KEY (new_serial_unit_id) REFERENCES serial_units(id),
+  FOREIGN KEY (new_entitlement_id) REFERENCES warranty_entitlements(id),
+  FOREIGN KEY (replaced_by) REFERENCES users(id),
+  CHECK (old_serial_unit_id <> new_serial_unit_id)
+) ENGINE=InnoDB;
+CREATE TABLE warranty_appointments (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  claim_id BIGINT NOT NULL,
+  warehouse_id BIGINT NOT NULL,
+  appointment_type VARCHAR(10) NOT NULL,
+  starts_at DATETIME(6) NOT NULL,
+  ends_at DATETIME(6) NOT NULL,
+  status VARCHAR(15) NOT NULL DEFAULT 'SCHEDULED',
+  FOREIGN KEY (claim_id) REFERENCES warranty_claims(id),
+  FOREIGN KEY (warehouse_id) REFERENCES warehouses(id),
+  CHECK (ends_at > starts_at),
+  CHECK (appointment_type IN ('INTAKE','RETURN')),
+  CHECK (status IN ('SCHEDULED','COMPLETED','CANCELLED','NO_SHOW'))
+) ENGINE=InnoDB;
+CREATE TABLE warranty_access_tokens (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  serial_unit_id BIGINT,
+  claim_id BIGINT,
+  token_hash BINARY(32) NOT NULL UNIQUE,
+  expires_at DATETIME(6) NOT NULL,
+  used_at DATETIME(6),
+  failed_attempts INT NOT NULL DEFAULT 0,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  FOREIGN KEY (serial_unit_id) REFERENCES serial_units(id),
+  FOREIGN KEY (claim_id) REFERENCES warranty_claims(id),
+  CHECK ((serial_unit_id IS NOT NULL) + (claim_id IS NOT NULL) = 1),
+  CHECK (failed_attempts >= 0)
+) ENGINE=InnoDB;
+
+-- ================================================================
+-- 10. PAYMENTS / WEBHOOKS / REFUNDS (orders and repair services)
+-- ================================================================
+CREATE TABLE payments (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  payment_reference VARCHAR(80) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+  order_id BIGINT,
+  repair_estimate_id BIGINT,
+  method VARCHAR(20) NOT NULL,
+  amount DECIMAL(19,2) NOT NULL,
+  currency_code CHAR(3) NOT NULL DEFAULT 'VND',
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  expires_at DATETIME(6),
+  paid_at DATETIME(6),
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  version BIGINT NOT NULL DEFAULT 0,
+  FOREIGN KEY (order_id) REFERENCES orders(id),
+  FOREIGN KEY (repair_estimate_id) REFERENCES repair_estimates(id),
+  CHECK ((order_id IS NOT NULL) + (repair_estimate_id IS NOT NULL) = 1),
+  CHECK (method IN ('VNPAY','MOMO','CARD','COD','BANK_TRANSFER','CASH')),
+  CHECK (amount > 0),
+  CHECK (status IN ('PENDING','AUTHORIZED','SUCCEEDED','FAILED','CANCELLED','EXPIRED'))
+) ENGINE=InnoDB;
+CREATE TABLE payment_transactions (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  payment_id BIGINT NOT NULL,
+  provider VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  merchant_reference VARCHAR(100) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+  provider_transaction_id VARCHAR(150) CHARACTER SET ascii COLLATE ascii_bin,
+  transaction_type VARCHAR(15) NOT NULL,
+  amount DECIMAL(19,2) NOT NULL,
+  status VARCHAR(15) NOT NULL,
+  response_code VARCHAR(80),
+  sanitized_metadata JSON,
+  occurred_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_provider_transaction (provider, provider_transaction_id, transaction_type),
+  FOREIGN KEY (payment_id) REFERENCES payments(id),
+  CHECK (transaction_type IN ('AUTHORIZE','CAPTURE','SALE','VOID','COD_COLLECT')),
+  CHECK (status IN ('PENDING','SUCCEEDED','FAILED')),
+  CHECK (amount > 0)
+) ENGINE=InnoDB;
+CREATE TABLE payment_webhook_events (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  provider VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  event_key VARCHAR(180) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  payment_id BIGINT,
+  payload_hash BINARY(32) NOT NULL,
+  sanitized_payload JSON,
+  signature_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  status VARCHAR(15) NOT NULL DEFAULT 'RECEIVED',
+  error_message VARCHAR(1000),
+  received_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  processed_at DATETIME(6),
+  UNIQUE KEY uk_payment_webhook (provider, event_key),
+  FOREIGN KEY (payment_id) REFERENCES payments(id),
+  CHECK (status IN ('RECEIVED','PROCESSED','REJECTED','FAILED'))
+) ENGINE=InnoDB;
+CREATE TABLE refunds (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  refund_reference VARCHAR(80) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+  payment_id BIGINT NOT NULL,
+  capture_transaction_id BIGINT NOT NULL,
+  return_request_id BIGINT,
+  provider VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  provider_refund_id VARCHAR(150) CHARACTER SET ascii COLLATE ascii_bin,
+  amount DECIMAL(19,2) NOT NULL,
+  status VARCHAR(15) NOT NULL DEFAULT 'PENDING',
+  reason VARCHAR(1000) NOT NULL,
+  created_by BIGINT,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  completed_at DATETIME(6),
+  UNIQUE KEY uk_provider_refund (provider, provider_refund_id),
+  FOREIGN KEY (payment_id) REFERENCES payments(id),
+  FOREIGN KEY (capture_transaction_id) REFERENCES payment_transactions(id),
+  FOREIGN KEY (return_request_id) REFERENCES return_requests(id),
+  FOREIGN KEY (created_by) REFERENCES users(id),
+  CHECK (amount > 0),
+  CHECK (status IN ('PENDING','SUCCEEDED','FAILED','CANCELLED'))
+) ENGINE=InnoDB;
+CREATE TABLE refund_items (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  refund_id BIGINT NOT NULL,
+  order_item_id BIGINT,
+  order_service_id BIGINT,
+  repair_estimate_item_id BIGINT,
+  allocation_type VARCHAR(15) NOT NULL,
+  quantity INT,
+  amount DECIMAL(19,2) NOT NULL,
+  FOREIGN KEY (refund_id) REFERENCES refunds(id),
+  FOREIGN KEY (order_item_id) REFERENCES order_items(id),
+  FOREIGN KEY (order_service_id) REFERENCES order_services(id),
+  FOREIGN KEY (repair_estimate_item_id) REFERENCES repair_estimate_items(id),
+  CHECK (allocation_type IN ('ITEM','SHIPPING','SERVICE','REPAIR')),
+  CHECK (amount > 0 AND quantity > 0),
+  CHECK (
+    (allocation_type = 'ITEM' AND order_item_id IS NOT NULL AND order_service_id IS NULL AND repair_estimate_item_id IS NULL AND quantity IS NOT NULL)
+    OR (allocation_type = 'SHIPPING' AND order_item_id IS NULL AND order_service_id IS NULL AND repair_estimate_item_id IS NULL)
+    OR (allocation_type = 'SERVICE' AND order_item_id IS NULL AND order_service_id IS NOT NULL AND repair_estimate_item_id IS NULL)
+    OR (allocation_type = 'REPAIR' AND order_item_id IS NULL AND order_service_id IS NULL AND repair_estimate_item_id IS NOT NULL)
+  )
+) ENGINE=InnoDB;
+
+-- Ledger written in the same transaction as balances / serial state.
+CREATE TABLE inventory_movements (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  inventory_balance_id BIGINT NOT NULL,
+  movement_type VARCHAR(25) NOT NULL,
+  quantity_delta INT NOT NULL,
+  serial_unit_id BIGINT,
+  receipt_item_id BIGINT,
+  order_item_id BIGINT,
+  transfer_item_id BIGINT,
+  return_item_id BIGINT,
+  repair_part_id BIGINT,
+  operation_key VARCHAR(120) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+  reason VARCHAR(1000),
+  created_by BIGINT,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  KEY ix_movement_balance_date (inventory_balance_id, created_at),
+  FOREIGN KEY (inventory_balance_id) REFERENCES inventory_balances(id),
+  FOREIGN KEY (serial_unit_id) REFERENCES serial_units(id),
+  FOREIGN KEY (receipt_item_id) REFERENCES goods_receipt_items(id),
+  FOREIGN KEY (order_item_id) REFERENCES order_items(id),
+  FOREIGN KEY (transfer_item_id) REFERENCES stock_transfer_items(id),
+  FOREIGN KEY (return_item_id) REFERENCES return_request_items(id),
+  FOREIGN KEY (repair_part_id) REFERENCES repair_parts(id),
+  FOREIGN KEY (created_by) REFERENCES users(id),
+  CHECK (quantity_delta <> 0),
+  CHECK (serial_unit_id IS NULL OR ABS(quantity_delta) = 1),
+  CHECK (movement_type IN ('RECEIPT','SALE','RETURN','TRANSFER_IN','TRANSFER_OUT','ADJUSTMENT','REPAIR_USE','CONDITION_CHANGE'))
+) ENGINE=InnoDB;
+CREATE TABLE serial_unit_events (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  serial_unit_id BIGINT NOT NULL,
+  event_type VARCHAR(40) NOT NULL,
+  from_status VARCHAR(25),
+  to_status VARCHAR(25),
+  order_item_serial_id BIGINT,
+  claim_item_id BIGINT,
+  movement_id BIGINT,
+  details JSON,
+  created_by BIGINT,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  KEY ix_serial_event_date (serial_unit_id, created_at),
+  FOREIGN KEY (serial_unit_id) REFERENCES serial_units(id),
+  FOREIGN KEY (order_item_serial_id) REFERENCES order_item_serials(id),
+  FOREIGN KEY (claim_item_id) REFERENCES warranty_claim_items(id),
+  FOREIGN KEY (movement_id) REFERENCES inventory_movements(id),
+  FOREIGN KEY (created_by) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+-- ================================================================
+-- 11. REVIEWS / WISHLIST / CMS / NOTIFICATIONS / ANALYTICS
+-- ================================================================
+CREATE TABLE reviews (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  product_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  order_item_id BIGINT NOT NULL,
+  rating SMALLINT NOT NULL,
+  title VARCHAR(200),
+  body TEXT NOT NULL,
+  status VARCHAR(15) NOT NULL DEFAULT 'PENDING',
+  moderated_by BIGINT,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_review_purchase (user_id, order_item_id),
+  KEY ix_review_product (product_id, status, created_at),
+  FOREIGN KEY (product_id) REFERENCES products(id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (order_item_id) REFERENCES order_items(id),
+  FOREIGN KEY (moderated_by) REFERENCES users(id),
+  CHECK (rating BETWEEN 1 AND 5),
+  CHECK (status IN ('PENDING','APPROVED','REJECTED','HIDDEN'))
+) ENGINE=InnoDB;
+CREATE TABLE review_media (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  review_id BIGINT NOT NULL,
+  url VARCHAR(1000) NOT NULL,
+  media_type VARCHAR(10) NOT NULL DEFAULT 'IMAGE',
+  FOREIGN KEY (review_id) REFERENCES reviews(id),
+  CHECK (media_type IN ('IMAGE','VIDEO'))
+) ENGINE=InnoDB;
+CREATE TABLE review_replies (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  review_id BIGINT NOT NULL,
+  author_id BIGINT NOT NULL,
+  body TEXT NOT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  FOREIGN KEY (review_id) REFERENCES reviews(id),
+  FOREIGN KEY (author_id) REFERENCES users(id)
+) ENGINE=InnoDB;
+CREATE TABLE review_votes (
+  review_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (review_id, user_id),
+  FOREIGN KEY (review_id) REFERENCES reviews(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB;
+CREATE TABLE wishlists (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  name VARCHAR(150) NOT NULL DEFAULT 'Yêu thích',
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB;
+CREATE TABLE wishlist_items (
+  wishlist_id BIGINT NOT NULL,
+  variant_id BIGINT NOT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (wishlist_id, variant_id),
+  FOREIGN KEY (wishlist_id) REFERENCES wishlists(id),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id)
+) ENGINE=InnoDB;
+CREATE TABLE banners (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(200) NOT NULL,
+  image_url VARCHAR(1000) NOT NULL,
+  mobile_image_url VARCHAR(1000),
+  target_url VARCHAR(1000),
+  placement VARCHAR(60) NOT NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  starts_at DATETIME(6),
+  ends_at DATETIME(6),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  CHECK (ends_at > starts_at)
+) ENGINE=InnoDB;
+CREATE TABLE content_pages (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  slug VARCHAR(180) NOT NULL UNIQUE,
+  title VARCHAR(255) NOT NULL,
+  body LONGTEXT NOT NULL,
+  status VARCHAR(15) NOT NULL DEFAULT 'DRAFT',
+  author_id BIGINT NOT NULL,
+  published_at DATETIME(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  FOREIGN KEY (author_id) REFERENCES users(id),
+  CHECK (status IN ('DRAFT','PUBLISHED','ARCHIVED'))
+) ENGINE=InnoDB;
+CREATE TABLE notification_templates (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(80) NOT NULL,
+  channel VARCHAR(15) NOT NULL,
+  subject_template VARCHAR(500),
+  body_template TEXT NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  UNIQUE KEY uk_notification_template (code, channel),
+  CHECK (channel IN ('IN_APP','EMAIL','SMS','PUSH'))
+) ENGINE=InnoDB;
+CREATE TABLE notifications (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT,
+  template_id BIGINT,
+  notification_type VARCHAR(60) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  body TEXT NOT NULL,
+  action_url VARCHAR(1000),
+  context JSON,
+  read_at DATETIME(6),
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  KEY ix_notification_user (user_id, read_at, created_at),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (template_id) REFERENCES notification_templates(id)
+) ENGINE=InnoDB;
+CREATE TABLE notification_deliveries (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  notification_id BIGINT NOT NULL,
+  channel VARCHAR(15) NOT NULL,
+  recipient VARCHAR(500) NOT NULL,
+  status VARCHAR(15) NOT NULL DEFAULT 'PENDING',
+  attempts INT NOT NULL DEFAULT 0,
+  next_attempt_at DATETIME(6),
+  provider_reference VARCHAR(150),
+  error_message VARCHAR(1000),
+  sent_at DATETIME(6),
+  KEY ix_notification_retry (status, next_attempt_at),
+  FOREIGN KEY (notification_id) REFERENCES notifications(id),
+  CHECK (channel IN ('EMAIL','SMS','PUSH')),
+  CHECK (status IN ('PENDING','SENDING','SENT','FAILED')),
+  CHECK (attempts >= 0)
+) ENGINE=InnoDB;
+CREATE TABLE analytics_sessions (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  session_key BINARY(32) NOT NULL UNIQUE,
+  user_id BIGINT,
+  consent_status VARCHAR(15) NOT NULL,
+  traffic_source VARCHAR(100),
+  campaign VARCHAR(150),
+  device_type VARCHAR(20),
+  is_bot BOOLEAN NOT NULL DEFAULT FALSE,
+  started_at DATETIME(6) NOT NULL,
+  last_seen_at DATETIME(6) NOT NULL,
+  KEY ix_analytics_session_date (started_at, is_bot),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  CHECK (consent_status IN ('GRANTED','DENIED','NOT_REQUIRED'))
+) ENGINE=InnoDB;
+CREATE TABLE analytics_events (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  event_key CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+  session_id BIGINT NOT NULL,
+  event_type VARCHAR(50) NOT NULL,
+  product_id BIGINT,
+  variant_id BIGINT,
+  build_request_id BIGINT,
+  order_id BIGINT,
+  properties JSON,
+  occurred_at DATETIME(6) NOT NULL,
+  KEY ix_analytics_type_date (event_type, occurred_at),
+  KEY ix_analytics_session_type (session_id, event_type),
+  FOREIGN KEY (session_id) REFERENCES analytics_sessions(id),
+  FOREIGN KEY (product_id) REFERENCES products(id),
+  FOREIGN KEY (variant_id) REFERENCES product_variants(id),
+  FOREIGN KEY (build_request_id) REFERENCES build_requests(id),
+  FOREIGN KEY (order_id) REFERENCES orders(id)
+) ENGINE=InnoDB;
+CREATE TABLE audit_logs (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  actor_user_id BIGINT,
+  action VARCHAR(100) NOT NULL,
+  entity_type VARCHAR(80) NOT NULL,
+  entity_id VARCHAR(100) NOT NULL,
+  before_data JSON,
+  after_data JSON,
+  request_id VARCHAR(100),
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  KEY ix_audit_entity (entity_type, entity_id, created_at),
+  KEY ix_audit_actor (actor_user_id, created_at),
+  FOREIGN KEY (actor_user_id) REFERENCES users(id)
+) ENGINE=InnoDB;
+CREATE TABLE outbox_events (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  event_key CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+  aggregate_type VARCHAR(80) NOT NULL,
+  aggregate_id BIGINT NOT NULL,
+  event_type VARCHAR(100) NOT NULL,
+  payload JSON NOT NULL,
+  status VARCHAR(15) NOT NULL DEFAULT 'PENDING',
+  attempts INT NOT NULL DEFAULT 0,
+  available_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  locked_until DATETIME(6),
+  locked_by VARCHAR(100),
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  published_at DATETIME(6),
+  KEY ix_outbox_poll (status, available_at),
+  CHECK (status IN ('PENDING','PROCESSING','PUBLISHED','FAILED')),
+  CHECK (attempts >= 0)
+) ENGINE=InnoDB;
+CREATE TABLE idempotency_keys (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  scope VARCHAR(80) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  actor_key BINARY(32) NOT NULL,
+  idempotency_key VARCHAR(150) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  request_hash BINARY(32) NOT NULL,
+  status VARCHAR(15) NOT NULL DEFAULT 'PROCESSING',
+  response_status SMALLINT,
+  response_body JSON,
+  expires_at DATETIME(6) NOT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_idempotency_scope (scope, actor_key, idempotency_key),
+  KEY ix_idempotency_expiry (expires_at),
+  CHECK (status IN ('PROCESSING','COMPLETED','FAILED'))
+) ENGINE=InnoDB;
+
+-- ================================================================
+-- 12. REPORTING VIEWS
+-- Report date uses UTC+07:00. Monetary dimensions always include currency.
+-- ================================================================
+CREATE VIEW v_sellable_inventory AS
+SELECT b.variant_id, SUM(b.on_hand) AS on_hand,
+       SUM(b.reserved) AS reserved, SUM(b.available) AS available
+FROM inventory_balances b
+JOIN warehouses w ON w.id = b.warehouse_id AND w.is_active = 1
+WHERE b.stock_condition = 'SELLABLE'
+GROUP BY b.variant_id;
+
+CREATE VIEW v_product_ratings AS
+SELECT product_id, COUNT(*) AS review_count, ROUND(AVG(rating), 2) AS average_rating
+FROM reviews WHERE status = 'APPROVED' GROUP BY product_id;
+
+CREATE VIEW v_daily_completed_orders AS
+SELECT DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')) AS report_date,
+       currency_code, COUNT(*) AS completed_orders,
+       SUM(subtotal) AS gross_item_amount, SUM(discount_amount) AS item_discount,
+       SUM(grand_total) AS completed_order_value
+FROM orders
+WHERE order_status = 'COMPLETED' AND completed_at IS NOT NULL
+GROUP BY DATE(CONVERT_TZ(completed_at, '+00:00', '+07:00')), currency_code;
+
+-- Cash movement, NOT accrual accounting revenue. Refund recorded on refund date.
+CREATE VIEW v_daily_cash_flow AS
+SELECT report_date, currency_code, SUM(cash_in) AS cash_in,
+       SUM(cash_out) AS cash_out, SUM(cash_in) - SUM(cash_out) AS net_cash
+FROM (
+  SELECT DATE(CONVERT_TZ(t.occurred_at, '+00:00', '+07:00')) AS report_date,
+         p.currency_code, t.amount AS cash_in, CAST(0 AS DECIMAL(19,2)) AS cash_out
+  FROM payment_transactions t JOIN payments p ON p.id = t.payment_id
+  WHERE t.status = 'SUCCEEDED' AND t.transaction_type IN ('CAPTURE','SALE','COD_COLLECT')
+  UNION ALL
+  SELECT DATE(CONVERT_TZ(r.completed_at, '+00:00', '+07:00')),
+         p.currency_code, CAST(0 AS DECIMAL(19,2)), r.amount
+  FROM refunds r JOIN payments p ON p.id = r.payment_id
+  WHERE r.status = 'SUCCEEDED' AND r.completed_at IS NOT NULL
+) cash_movements
+GROUP BY report_date, currency_code;
+
+CREATE VIEW v_best_selling_variants AS
+SELECT oi.variant_id, o.currency_code, SUM(oi.quantity) AS sold_quantity,
+       SUM(oi.line_total) AS item_sales_before_returns,
+       SUM(oi.quantity * oi.unit_cost) AS recorded_cost_before_returns
+FROM order_items oi JOIN orders o ON o.id = oi.order_id
+WHERE o.order_status = 'COMPLETED' AND oi.is_gift = 0
+GROUP BY oi.variant_id, o.currency_code;
+
+-- Cohort conversion: session start day; numerator = sessions with a confirmed order.
+CREATE VIEW v_daily_session_conversion AS
+SELECT DATE(CONVERT_TZ(s.started_at, '+00:00', '+07:00')) AS cohort_date,
+       COUNT(*) AS sessions,
+       SUM(CASE WHEN converted.session_id IS NOT NULL THEN 1 ELSE 0 END) AS converted_sessions,
+       ROUND(100.0 * SUM(CASE WHEN converted.session_id IS NOT NULL THEN 1 ELSE 0 END) / COUNT(*), 2) AS conversion_percent
+FROM analytics_sessions s
+LEFT JOIN (
+  SELECT DISTINCT e.session_id
+  FROM analytics_events e JOIN orders o ON o.id = e.order_id
+  WHERE e.event_type = 'PURCHASE' AND o.order_status IN ('CONFIRMED','PROCESSING','COMPLETED')
+) converted ON converted.session_id = s.id
+WHERE s.is_bot = 0 AND s.consent_status IN ('GRANTED','NOT_REQUIRED')
+GROUP BY DATE(CONVERT_TZ(s.started_at, '+00:00', '+07:00'));
+
+
+-- ================================================================
+-- PHẦN 3: V2__reference_data.sql
+-- ================================================================
+-- Reference data only. No customer, admin password, stock, or fabricated benchmark.
+SET NAMES utf8mb4;
+SET time_zone = '+00:00';
+START TRANSACTION;
+
+INSERT INTO roles (code, name) VALUES
+('CUSTOMER', 'Khách hàng'), ('ADMIN', 'Quản trị viên'),
+('SALES', 'Nhân viên bán hàng'), ('WAREHOUSE', 'Nhân viên kho'),
+('TECHNICIAN', 'Kỹ thuật viên'), ('MARKETING', 'Nhân viên marketing');
+
+INSERT INTO permissions (code, description) VALUES
+('catalog.read', 'Xem danh mục và sản phẩm'),
+('catalog.write', 'Quản lý sản phẩm và thông số'),
+('inventory.read', 'Xem tồn kho và SN'),
+('inventory.write', 'Nhập xuất kho và điều chuyển'),
+('orders.read', 'Xem đơn hàng'),
+('orders.write', 'Xử lý đơn hàng'),
+('payments.read', 'Xem thanh toán'),
+('refunds.write', 'Thực hiện hoàn tiền'),
+('customers.read', 'Xem khách hàng'),
+('customers.write', 'Quản lý khách hàng'),
+('promotions.read', 'Xem khuyến mãi'),
+('promotions.write', 'Tạo và phát hành khuyến mãi'),
+('builds.read', 'Xem cấu hình và lịch sử AI'),
+('builds.configure', 'Quản lý quy tắc tương thích và hồ sơ nhu cầu'),
+('warranty.read', 'Xem phiếu bảo hành'),
+('warranty.write', 'Xử lý bảo hành và sửa chữa'),
+('reports.read', 'Xem báo cáo'),
+('content.write', 'Quản lý nội dung và đánh giá'),
+('staff.manage', 'Quản lý nhân viên và phân quyền'),
+('audit.read', 'Xem nhật ký quản trị');
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.code = 'ADMIN';
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r CROSS JOIN permissions p
+WHERE r.code = 'SALES' AND p.code IN
+('catalog.read','inventory.read','orders.read','orders.write','payments.read','customers.read','promotions.read','builds.read','warranty.read');
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r CROSS JOIN permissions p
+WHERE r.code = 'WAREHOUSE' AND p.code IN ('catalog.read','inventory.read','inventory.write','orders.read');
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r CROSS JOIN permissions p
+WHERE r.code = 'TECHNICIAN' AND p.code IN ('catalog.read','inventory.read','builds.read','warranty.read','warranty.write');
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r CROSS JOIN permissions p
+WHERE r.code = 'MARKETING' AND p.code IN ('catalog.read','promotions.read','promotions.write','reports.read','content.write');
+-- CUSTOMER uses authenticated ownership checks, not global admin permissions.
+
+INSERT INTO customer_groups (code, name) VALUES
+('RETAIL','Khách lẻ'), ('VIP','Khách VIP'), ('BUSINESS','Khách doanh nghiệp');
+
+INSERT INTO brands (name, slug) VALUES
+('Intel','intel'), ('AMD','amd'), ('ASUS','asus'), ('MSI','msi'),
+('Gigabyte','gigabyte'), ('ASRock','asrock'), ('Kingston','kingston'),
+('Corsair','corsair'), ('G.Skill','gskill'), ('Samsung','samsung'),
+('Western Digital','western-digital'), ('Crucial','crucial'),
+('Seasonic','seasonic'), ('Cooler Master','cooler-master'),
+('DeepCool','deepcool'), ('Lian Li','lian-li'), ('Logitech','logitech'),
+('Razer','razer'), ('LG','lg'), ('Dell','dell');
+
+INSERT INTO categories (name, slug, category_group, component_type, sort_order) VALUES
+('Linh kiện máy tính','linh-kien','COMPONENT',NULL,1),
+('Phụ kiện máy tính','phu-kien','ACCESSORY',NULL,2);
+INSERT INTO categories (parent_id, name, slug, category_group, component_type, sort_order)
+SELECT p.id, x.name, x.slug, 'COMPONENT', x.kind, x.pos
+FROM categories p CROSS JOIN (
+  SELECT 'Bộ vi xử lý CPU' AS name, 'cpu' AS slug, 'CPU' AS kind, 1 AS pos
+  UNION ALL SELECT 'Bo mạch chủ','mainboard','MOTHERBOARD',2
+  UNION ALL SELECT 'Bộ nhớ RAM','ram','RAM',3
+  UNION ALL SELECT 'Card đồ họa','card-do-hoa','GPU',4
+  UNION ALL SELECT 'Ổ cứng SSD / HDD','o-cung','STORAGE',5
+  UNION ALL SELECT 'Nguồn máy tính','nguon','PSU',6
+  UNION ALL SELECT 'Vỏ máy tính','vo-case','CASE',7
+  UNION ALL SELECT 'Tản nhiệt CPU','tan-nhiet','COOLER',8
+  UNION ALL SELECT 'Quạt case','quat-case','FAN',9
+) x WHERE p.slug = 'linh-kien';
+INSERT INTO categories (parent_id, name, slug, category_group, component_type, sort_order)
+SELECT p.id, x.name, x.slug, 'ACCESSORY', x.kind, x.pos
+FROM categories p CROSS JOIN (
+  SELECT 'Màn hình' AS name, 'man-hinh' AS slug, 'MONITOR' AS kind, 1 AS pos
+  UNION ALL SELECT 'Bàn phím','ban-phim','OTHER',2
+  UNION ALL SELECT 'Chuột','chuot','OTHER',3
+  UNION ALL SELECT 'Tai nghe','tai-nghe','OTHER',4
+  UNION ALL SELECT 'Cáp kết nối','cap-ket-noi','OTHER',5
+  UNION ALL SELECT 'Lót chuột','lot-chuot','OTHER',6
+) x WHERE p.slug = 'phu-kien';
+
+INSERT INTO attribute_definitions (code, name, data_type, unit) VALUES
+('memory_type','Chuẩn RAM','OPTION',NULL),
+('ram_capacity_gb','Tổng dung lượng RAM','NUMBER','GB'),
+('ram_speed_mts','Tốc độ RAM','NUMBER','MT/s'),
+('ram_module_count','Số thanh RAM mỗi bộ','NUMBER','thanh'),
+('cpu_socket','Socket CPU','OPTION',NULL),
+('cpu_cores','Số nhân CPU','NUMBER','nhân'),
+('has_igpu','Có đồ họa tích hợp','BOOLEAN',NULL),
+('motherboard_form_factor','Kích thước mainboard','OPTION',NULL),
+('has_wifi','Có Wi-Fi','BOOLEAN',NULL),
+('vram_gb','Dung lượng VRAM','NUMBER','GB'),
+('storage_capacity_gb','Dung lượng ổ cứng','NUMBER','GB'),
+('storage_interface','Giao tiếp ổ cứng','OPTION',NULL),
+('psu_power_w','Công suất nguồn','NUMBER','W'),
+('monitor_refresh_hz','Tần số quét','NUMBER','Hz'),
+('monitor_size_inch','Kích thước màn hình','NUMBER','inch'),
+('monitor_resolution','Độ phân giải','OPTION',NULL),
+('monitor_panel','Tấm nền','OPTION',NULL),
+('connection_type','Kết nối','OPTION',NULL);
+
+INSERT INTO attribute_options (attribute_id, value)
+SELECT a.id, x.value FROM attribute_definitions a JOIN (
+  SELECT 'memory_type' AS code, 'DDR4' AS value
+  UNION ALL SELECT 'memory_type','DDR5'
+  UNION ALL SELECT 'cpu_socket','LGA1700'
+  UNION ALL SELECT 'cpu_socket','LGA1851'
+  UNION ALL SELECT 'cpu_socket','AM4'
+  UNION ALL SELECT 'cpu_socket','AM5'
+  UNION ALL SELECT 'motherboard_form_factor','ATX'
+  UNION ALL SELECT 'motherboard_form_factor','MICRO_ATX'
+  UNION ALL SELECT 'motherboard_form_factor','MINI_ITX'
+  UNION ALL SELECT 'motherboard_form_factor','E_ATX'
+  UNION ALL SELECT 'storage_interface','SATA'
+  UNION ALL SELECT 'storage_interface','PCIE_NVME'
+  UNION ALL SELECT 'monitor_resolution','1920x1080'
+  UNION ALL SELECT 'monitor_resolution','2560x1440'
+  UNION ALL SELECT 'monitor_resolution','3840x2160'
+  UNION ALL SELECT 'monitor_panel','IPS'
+  UNION ALL SELECT 'monitor_panel','VA'
+  UNION ALL SELECT 'monitor_panel','TN'
+  UNION ALL SELECT 'monitor_panel','OLED'
+  UNION ALL SELECT 'connection_type','USB'
+  UNION ALL SELECT 'connection_type','BLUETOOTH'
+  UNION ALL SELECT 'connection_type','WIRELESS_2_4G'
+) x ON x.code = a.code;
+
+INSERT INTO category_attributes (category_id, attribute_id, is_required, is_filterable)
+SELECT c.id, a.id, TRUE, TRUE
+FROM categories c JOIN (
+  SELECT 'ram' AS slug, 'memory_type' AS code
+  UNION ALL SELECT 'ram','ram_capacity_gb'
+  UNION ALL SELECT 'ram','ram_speed_mts'
+  UNION ALL SELECT 'ram','ram_module_count'
+  UNION ALL SELECT 'cpu','cpu_socket'
+  UNION ALL SELECT 'cpu','cpu_cores'
+  UNION ALL SELECT 'cpu','has_igpu'
+  UNION ALL SELECT 'mainboard','cpu_socket'
+  UNION ALL SELECT 'mainboard','memory_type'
+  UNION ALL SELECT 'mainboard','motherboard_form_factor'
+  UNION ALL SELECT 'mainboard','has_wifi'
+  UNION ALL SELECT 'card-do-hoa','vram_gb'
+  UNION ALL SELECT 'o-cung','storage_capacity_gb'
+  UNION ALL SELECT 'o-cung','storage_interface'
+  UNION ALL SELECT 'nguon','psu_power_w'
+  UNION ALL SELECT 'man-hinh','monitor_refresh_hz'
+  UNION ALL SELECT 'man-hinh','monitor_size_inch'
+  UNION ALL SELECT 'man-hinh','monitor_resolution'
+  UNION ALL SELECT 'man-hinh','monitor_panel'
+  UNION ALL SELECT 'ban-phim','connection_type'
+  UNION ALL SELECT 'chuot','connection_type'
+  UNION ALL SELECT 'tai-nghe','connection_type'
+) x ON c.slug = x.slug
+JOIN attribute_definitions a ON a.code = x.code;
+
+INSERT INTO cpu_sockets (code, manufacturer) VALUES
+('LGA1700','Intel'), ('LGA1851','Intel'), ('AM4','AMD'), ('AM5','AMD');
+INSERT INTO power_connector_types (code, name) VALUES
+('ATX_24','ATX 24-pin'), ('EPS_8','EPS CPU 8-pin'),
+('EPS_4','EPS CPU 4-pin'), ('PCIE_6','PCIe 6-pin'),
+('PCIE_8','PCIe 8-pin'), ('12VHPWR','12VHPWR 16-pin'),
+('12V_2X6','12V-2x6 16-pin'), ('SATA_POWER','SATA power'), ('MOLEX_4','Molex 4-pin');
+
+-- Illustrative optimization weights, not benchmark claims.
+INSERT INTO usage_profiles (code, name, weights, minimum_requirements) VALUES
+('GAMING','Chơi game',JSON_OBJECT('cpu',0.25,'gpu',0.50,'ram',0.15,'storage',0.10),JSON_OBJECT('ram_gb',16,'storage_gb',500)),
+('RENDER_3D','Đồ họa 3D',JSON_OBJECT('cpu',0.30,'gpu',0.40,'ram',0.20,'storage',0.10),JSON_OBJECT('ram_gb',32,'storage_gb',1000)),
+('OFFICE','Văn phòng',JSON_OBJECT('cpu',0.40,'gpu',0.05,'ram',0.25,'storage',0.30),JSON_OBJECT('ram_gb',8,'storage_gb',250)),
+('PROGRAMMING','Lập trình',JSON_OBJECT('cpu',0.45,'gpu',0.05,'ram',0.30,'storage',0.20),JSON_OBJECT('ram_gb',16,'storage_gb',500)),
+('VIDEO_EDITING','Dựng phim',JSON_OBJECT('cpu',0.30,'gpu',0.30,'ram',0.20,'storage',0.20),JSON_OBJECT('ram_gb',32,'storage_gb',1000));
+
+INSERT INTO compatibility_rules (code, rule_version, evaluator_key, severity, configuration, description) VALUES
+('REQUIRED_COMPONENTS',1,'requiredComponents','ERROR',JSON_OBJECT('required',JSON_ARRAY('CPU','MOTHERBOARD','RAM','STORAGE','PSU','CASE'),'require_cooling_solution',TRUE,'require_display_solution',TRUE),'Đủ các linh kiện và giải pháp tản nhiệt / xuất hình'),
+('CPU_SOCKET',1,'cpuSocket','ERROR',JSON_OBJECT(),'CPU và mainboard phải đúng socket'),
+('CPU_BIOS_SUPPORT',1,'cpuBiosSupport','ERROR',JSON_OBJECT('unknown_result','UNKNOWN'),'Kiểm tra danh sách CPU hỗ trợ và BIOS tối thiểu'),
+('RAM_COMPATIBILITY',1,'ramCompatibility','ERROR',JSON_OBJECT(),'Đúng DDR, module, số khe, dung lượng và khả năng hỗ trợ CPU'),
+('CASE_FORM_FACTOR',1,'caseFormFactor','ERROR',JSON_OBJECT(),'Mainboard và PSU phù hợp chuẩn case'),
+('GPU_CLEARANCE',1,'gpuClearance','ERROR',JSON_OBJECT(),'GPU vừa không gian lắp đặt thực tế'),
+('COOLER_COMPATIBILITY',1,'coolerCompatibility','ERROR',JSON_OBJECT(),'Tản hỗ trợ socket, kích thước và cấu hình lắp'),
+('STORAGE_SLOTS',1,'storageSlots','ERROR',JSON_OBJECT(),'Đủ khe, đúng giao tiếp, protocol và kích thước lưu trữ'),
+('LANE_SHARING',1,'laneSharing','ERROR',JSON_OBJECT(),'Không dùng cổng bị vô hiệu hóa do chia sẻ lane'),
+('PSU_CAPACITY',1,'psuCapacity','ERROR',JSON_OBJECT('headroom_ratio',1.30,'respect_gpu_vendor_minimum',TRUE),'Ước tính tải cực đại và dự phòng nguồn; tỷ lệ phải được kỹ thuật hiệu chỉnh'),
+('POWER_CONNECTORS',1,'powerConnectors','ERROR',JSON_OBJECT('allow_unverified_adapters',FALSE),'Đủ đầu nguồn đúng loại cho toàn hệ thống'),
+('DISPLAY_SOLUTION',1,'displaySolution','ERROR',JSON_OBJECT(),'Có GPU rời hoặc iGPU và cổng xuất hình phù hợp'),
+('BUDGET_LIMIT',1,'budgetLimit','ERROR',JSON_OBJECT(),'Tổng tiền không vượt phạm vi ngân sách đã chọn'),
+('SELLABLE_STOCK',1,'sellableStock','ERROR',JSON_OBJECT(),'Linh kiện cần mua đang bán và đủ khả năng cấp hàng');
+
+INSERT INTO shipping_providers (code, name) VALUES
+('GHN','Giao Hàng Nhanh'), ('GHTK','Giao Hàng Tiết Kiệm'),
+('VIETTEL_POST','Viettel Post'), ('STORE','Cửa hàng tự giao / nhận tại cửa hàng');
+INSERT INTO shipping_methods (provider_id, code, name, supports_cod)
+SELECT id, 'STANDARD', 'Giao hàng tiêu chuẩn', TRUE
+FROM shipping_providers WHERE code IN ('GHN','GHTK','VIETTEL_POST');
+INSERT INTO shipping_methods (provider_id, code, name, supports_cod)
+SELECT id, 'PICKUP', 'Nhận tại cửa hàng', TRUE FROM shipping_providers WHERE code = 'STORE';
+
+COMMIT;
+
+
+-- ================================================================
+-- PHẦN 4: examples/promotion_examples.sql — TÙY CHỌN, KHÔNG TỰ CHẠY
+-- ================================================================
+-- Sao chép nội dung bên trong khối chú thích ra để chạy riêng.
+-- Khuyến mãi mẫu: điền ID thật trước khi chạy. Kiểm thử: chỉ chạy trên database thử nghiệm.
+/*
+-- OPTIONAL EXAMPLE. NOT a Flyway migration. Replace IDs before executing.
+-- It creates DRAFT programs only. Publish after rule simulation in Spring Boot.
+-- Requirements:
+--   @admin_id: existing staff user; @gift_variant_id: existing mouse-pad SKU.
+-- SET @admin_id = 123;
+-- SET @gift_variant_id = 456;
+-- Never execute with unset variables.
+
+START TRANSACTION;
+
+-- Example 1: strictly greater than VND 10 million -> one free mouse pad.
+INSERT INTO promotions (code, name, created_by)
+VALUES ('GIFT_OVER_10M','Đơn trên 10 triệu tặng lót chuột',@admin_id);
+SET @promotion_id = LAST_INSERT_ID();
+INSERT INTO promotion_versions (promotion_id, version_no, starts_at, ends_at, stacking_policy)
+VALUES (@promotion_id,1,UTC_TIMESTAMP(6),DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 30 DAY),'EXCLUSIVE');
+SET @version_id = LAST_INSERT_ID();
+INSERT INTO promotion_condition_groups (promotion_version_id, logical_operator) VALUES (@version_id,'AND');
+SET @group_id = LAST_INSERT_ID();
+INSERT INTO promotion_conditions (group_id, condition_type, comparison_operator, configuration)
+VALUES (@group_id,'ORDER_AMOUNT','GT',JSON_OBJECT('amount',10000000,'exclude_gifts',TRUE));
+INSERT INTO promotion_targets (promotion_version_id, selector_key, target_role, variant_id)
+VALUES (@version_id,'mouse_pad_gifts','GIFT',@gift_variant_id);
+INSERT INTO promotion_actions (promotion_version_id, action_type, gift_quantity, configuration)
+VALUES (@version_id,'GIFT',1,JSON_OBJECT('gift_selector','mouse_pad_gifts','out_of_stock','SKIP_BENEFIT'));
+INSERT INTO promotion_usage_counters (promotion_version_id) VALUES (@version_id);
+
+-- Example 2: strictly greater than VND 20 million -> 5%, capped at VND 2 million.
+INSERT INTO promotions (code, name, created_by)
+VALUES ('PERCENT_OVER_20M','Đơn trên 20 triệu giảm 5%',@admin_id);
+SET @promotion_id = LAST_INSERT_ID();
+INSERT INTO promotion_versions (promotion_id, version_no, starts_at, ends_at, stacking_policy)
+VALUES (@promotion_id,1,UTC_TIMESTAMP(6),DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 30 DAY),'EXCLUSIVE');
+SET @version_id = LAST_INSERT_ID();
+INSERT INTO promotion_condition_groups (promotion_version_id, logical_operator) VALUES (@version_id,'AND');
+SET @group_id = LAST_INSERT_ID();
+INSERT INTO promotion_conditions (group_id, condition_type, comparison_operator, configuration)
+VALUES (@group_id,'ORDER_AMOUNT','GT',JSON_OBJECT('amount',20000000,'exclude_gifts',TRUE));
+INSERT INTO promotion_actions (promotion_version_id, action_type, percent_value, max_discount, configuration)
+VALUES (@version_id,'PERCENT_DISCOUNT',5,2000000,JSON_OBJECT('scope','ELIGIBLE_ITEMS','rounding','HALF_UP','currency_scale',0));
+INSERT INTO promotion_usage_counters (promotion_version_id) VALUES (@version_id);
+
+-- Example 3: CPU + motherboard -> VND 500,000 per matched pair, at most one pair.
+INSERT INTO promotions (code, name, created_by)
+VALUES ('CPU_MB_COMBO','Combo CPU và mainboard giảm 500.000đ',@admin_id);
+SET @promotion_id = LAST_INSERT_ID();
+INSERT INTO promotion_versions (promotion_id, version_no, starts_at, ends_at, max_applications_per_order)
+VALUES (@promotion_id,1,UTC_TIMESTAMP(6),DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 30 DAY),1);
+SET @version_id = LAST_INSERT_ID();
+INSERT INTO promotion_condition_groups (promotion_version_id, logical_operator) VALUES (@version_id,'AND');
+SET @group_id = LAST_INSERT_ID();
+INSERT INTO promotion_targets (promotion_version_id, selector_key, target_role, category_id)
+SELECT @version_id,'cpu_set','INCLUDE',id FROM categories WHERE slug = 'cpu';
+INSERT INTO promotion_targets (promotion_version_id, selector_key, target_role, category_id)
+SELECT @version_id,'mb_set','INCLUDE',id FROM categories WHERE slug = 'mainboard';
+INSERT INTO promotion_conditions (group_id, condition_type, comparison_operator, configuration) VALUES
+(@group_id,'ITEM_QUANTITY','GTE',JSON_OBJECT('selector','cpu_set','quantity',1)),
+(@group_id,'ITEM_QUANTITY','GTE',JSON_OBJECT('selector','mb_set','quantity',1));
+INSERT INTO promotion_actions (promotion_version_id, action_type, amount, configuration)
+VALUES (@version_id,'FIXED_DISCOUNT',500000,JSON_OBJECT('scope','MATCHED_COMBO','pair_selectors',JSON_ARRAY('cpu_set','mb_set'),'consume_matched_quantity',TRUE,'allocation','PROPORTIONAL','rounding','HALF_UP'));
+INSERT INTO promotion_usage_counters (promotion_version_id) VALUES (@version_id);
+
+COMMIT;
+
+*/
+
+-- ================================================================
+-- PHẦN 5: tests/smoke.sql — TÙY CHỌN, KHÔNG TỰ CHẠY
+-- ================================================================
+-- Sao chép nội dung bên trong khối chú thích ra để chạy riêng.
+-- Khuyến mãi mẫu: điền ID thật trước khi chạy. Kiểm thử: chỉ chạy trên database thử nghiệm.
+/*
+-- Run ONLY in a disposable test database after V1 and V2.
+-- Fixture DML is rolled back. Routine DDL is not transactional.
+SET NAMES utf8mb4;
+SET time_zone = '+00:00';
+DELIMITER $$
+CREATE PROCEDURE pcforge_schema_smoke_test()
+BEGIN
+  DECLARE v_user BIGINT;
+  DECLARE v_brand BIGINT;
+  DECLARE v_category BIGINT;
+  DECLARE v_product BIGINT;
+  DECLARE v_sku BIGINT;
+  DECLARE v_warehouse BIGINT;
+  DECLARE v_balance BIGINT;
+  DECLARE v_serial BIGINT;
+  DECLARE v_order BIGINT;
+  DECLARE v_item_a BIGINT;
+  DECLARE v_item_b BIGINT;
+  DECLARE v_attribute BIGINT;
+  DECLARE v_got_error BOOLEAN DEFAULT FALSE;
+  DECLARE v_count INT;
+  DECLARE v_amount DECIMAL(19,2);
+  DECLARE v_suffix VARCHAR(32);
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION
+  BEGIN
+    ROLLBACK;
+    RESIGNAL;
+  END;
+
+  SET v_suffix = REPLACE(UUID(),'-','');
+  START TRANSACTION;
+
+  INSERT INTO users(email, full_name)
+  VALUES (CONCAT(v_suffix,'@example.invalid'),'Schema smoke fixture');
+  SET v_user = LAST_INSERT_ID();
+  INSERT INTO customer_addresses(user_id, recipient_name, phone, province_name, address_line, is_default)
+  VALUES (v_user,'Fixture','0000000000','Fixture','Fixture',TRUE);
+  SET v_got_error = FALSE;
+  BEGIN
+    DECLARE CONTINUE HANDLER FOR 1062 SET v_got_error = TRUE;
+    INSERT INTO customer_addresses(user_id, recipient_name, phone, province_name, address_line, is_default)
+    VALUES (v_user,'Fixture','0000000000','Fixture','Second default',TRUE);
+  END;
+  IF NOT v_got_error THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'FAIL: duplicate default address accepted'; END IF;
+
+  SELECT id INTO v_brand FROM brands WHERE slug = 'intel';
+  SELECT id INTO v_category FROM categories WHERE slug = 'cpu';
+  IF v_brand IS NULL OR v_category IS NULL THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'FAIL: run V2 reference data first';
+  END IF;
+  INSERT INTO products(brand_id, category_id, name, slug, status)
+  VALUES(v_brand,v_category,'SMOKE ONLY',CONCAT('smoke-',v_suffix),'ACTIVE');
+  SET v_product = LAST_INSERT_ID();
+  INSERT INTO product_variants(product_id, sku, name, list_price, sale_price, track_serial, status)
+  VALUES(v_product,CONCAT('SMOKE-',v_suffix),'SMOKE ONLY',1000000,1000000,TRUE,'ACTIVE');
+  SET v_sku = LAST_INSERT_ID();
+
+  SET v_got_error = FALSE;
+  BEGIN
+    DECLARE CONTINUE HANDLER FOR 3819 SET v_got_error = TRUE;
+    UPDATE product_variants SET sale_price = -1 WHERE id = v_sku;
+  END;
+  IF NOT v_got_error THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'FAIL: negative SKU price accepted'; END IF;
+
+  SELECT id INTO v_attribute FROM attribute_definitions WHERE code = 'cpu_cores';
+  SET v_got_error = FALSE;
+  BEGIN
+    DECLARE CONTINUE HANDLER FOR 3819 SET v_got_error = TRUE;
+    INSERT INTO variant_attribute_values(variant_id, attribute_id, number_value, text_value)
+    VALUES(v_sku,v_attribute,6,'two values are invalid');
+  END;
+  IF NOT v_got_error THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'FAIL: multiple typed attribute values accepted'; END IF;
+
+  INSERT INTO warehouses(code,name,address) VALUES(CONCAT('W-',LEFT(v_suffix,20)),'SMOKE ONLY','Fixture');
+  SET v_warehouse = LAST_INSERT_ID();
+  INSERT INTO inventory_balances(warehouse_id,variant_id,on_hand,reserved)
+  VALUES(v_warehouse,v_sku,1,0);
+  SET v_balance = LAST_INSERT_ID();
+  UPDATE inventory_balances SET reserved = reserved + 1, version = version + 1
+  WHERE id = v_balance AND stock_condition = 'SELLABLE' AND on_hand - reserved >= 1;
+  IF ROW_COUNT() <> 1 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'FAIL: initial stock reservation failed'; END IF;
+  UPDATE inventory_balances SET reserved = reserved + 1, version = version + 1
+  WHERE id = v_balance AND stock_condition = 'SELLABLE' AND on_hand - reserved >= 1;
+  IF ROW_COUNT() <> 0 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'FAIL: conditional update oversold stock'; END IF;
+  SELECT available INTO v_count FROM inventory_balances WHERE id = v_balance;
+  IF v_count <> 0 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'FAIL: generated available incorrect'; END IF;
+
+  SET v_got_error = FALSE;
+  BEGIN
+    DECLARE CONTINUE HANDLER FOR 3819 SET v_got_error = TRUE;
+    UPDATE inventory_balances SET reserved = 2 WHERE id = v_balance;
+  END;
+  IF NOT v_got_error THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'FAIL: CHECK allowed reserved greater than on_hand'; END IF;
+
+  INSERT INTO serial_units(variant_id,serial_namespace,serial_number,serial_normalized,warehouse_id)
+  VALUES(v_sku,'SMOKE',v_suffix,v_suffix,v_warehouse);
+  SET v_serial = LAST_INSERT_ID();
+  SET v_got_error = FALSE;
+  BEGIN
+    DECLARE CONTINUE HANDLER FOR 1062 SET v_got_error = TRUE;
+    INSERT INTO serial_units(variant_id,serial_namespace,serial_number,serial_normalized)
+    VALUES(v_sku,'SMOKE',v_suffix,v_suffix);
+  END;
+  IF NOT v_got_error THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'FAIL: duplicate namespace/SN accepted'; END IF;
+
+  INSERT INTO orders(order_number,user_id,customer_email,customer_phone,subtotal,discount_amount,grand_total)
+  VALUES(CONCAT('SMOKE-',v_suffix),v_user,CONCAT(v_suffix,'@example.invalid'),'0000000000',2000000,100000,1900000);
+  SET v_order = LAST_INSERT_ID();
+  INSERT INTO order_items(order_id,variant_id,sku_snapshot,name_snapshot,quantity,unit_price,discount_amount,requires_serial)
+  VALUES(v_order,v_sku,'SMOKE','SMOKE',1,1000000,100000,TRUE);
+  SET v_item_a = LAST_INSERT_ID();
+  INSERT INTO order_items(order_id,variant_id,sku_snapshot,name_snapshot,quantity,unit_price,requires_serial)
+  VALUES(v_order,v_sku,'SMOKE','SMOKE',1,1000000,TRUE);
+  SET v_item_b = LAST_INSERT_ID();
+  SELECT line_total INTO v_amount FROM order_items WHERE id = v_item_a;
+  IF v_amount <> 900000 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'FAIL: line_total generation incorrect'; END IF;
+
+  SET v_got_error = FALSE;
+  BEGIN
+    DECLARE CONTINUE HANDLER FOR 3819 SET v_got_error = TRUE;
+    UPDATE orders SET grand_total = 1 WHERE id = v_order;
+  END;
+  IF NOT v_got_error THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'FAIL: inconsistent grand_total accepted'; END IF;
+
+  INSERT INTO order_item_serials(order_item_id,serial_unit_id) VALUES(v_item_a,v_serial);
+  SET v_got_error = FALSE;
+  BEGIN
+    DECLARE CONTINUE HANDLER FOR 1062 SET v_got_error = TRUE;
+    INSERT INTO order_item_serials(order_item_id,serial_unit_id) VALUES(v_item_b,v_serial);
+  END;
+  IF NOT v_got_error THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'FAIL: concurrent active SN allocation accepted'; END IF;
+  UPDATE order_item_serials SET released_at = UTC_TIMESTAMP(6), release_reason = 'Test release'
+  WHERE order_item_id = v_item_a;
+  INSERT INTO order_item_serials(order_item_id,serial_unit_id) VALUES(v_item_b,v_serial);
+
+  SET v_got_error = FALSE;
+  BEGIN
+    DECLARE CONTINUE HANDLER FOR 3819 SET v_got_error = TRUE;
+    INSERT INTO reviews(product_id,user_id,order_item_id,rating,body)
+    VALUES(v_product,v_user,v_item_a,6,'Invalid rating');
+  END;
+  IF NOT v_got_error THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'FAIL: rating outside 1..5 accepted'; END IF;
+
+  SET v_got_error = FALSE;
+  BEGIN
+    DECLARE CONTINUE HANDLER FOR 1452 SET v_got_error = TRUE;
+    INSERT INTO user_roles(user_id,role_id) VALUES(v_user,-1);
+  END;
+  IF NOT v_got_error THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'FAIL: invalid foreign key accepted'; END IF;
+
+  ROLLBACK;
+  SELECT 'PASS: address, prices, attributes, stock, SN, totals, reviews, foreign keys; fixtures rolled back' AS result;
+END$$
+DELIMITER ;
+CALL pcforge_schema_smoke_test();
+DROP PROCEDURE pcforge_schema_smoke_test;
+
+*/

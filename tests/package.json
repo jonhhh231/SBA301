@@ -1,0 +1,10 @@
+{
+  "name": "pcforge-schema-static-check",
+  "private": true,
+  "scripts": {
+    "check": "node validate-schema.cjs"
+  },
+  "devDependencies": {
+    "node-sql-parser": "5.4.0"
+  }
+}
