@@ -1,0 +1,8 @@
+spring:
+  datasource:
+    url: "jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/${DB_NAME:pcforge}?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true"
+
+# Contract for future CORS configuration; not active until backend code binds it.
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}

@@ -5,8 +5,9 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const { Parser } = require(process.argv[2] || 'node-sql-parser');
 const parser = new Parser();
-const root = path.resolve(__dirname, '..');
-const schema = fs.readFileSync(path.join(root, 'V1__schema.sql'), 'utf8');
+const root = path.resolve(__dirname, '../..');
+const migrationDir = 'backend/src/main/resources/db/migration';
+const schema = fs.readFileSync(path.join(root, migrationDir, 'V1__schema.sql'), 'utf8');
 const tables = new Map();
 const names = [...schema.matchAll(/CREATE TABLE\s+(\w+)\s*\(([\s\S]*?)\) ENGINE=InnoDB;/g)];
 assert(names.length > 100, 'Expected the complete modular schema');
@@ -67,7 +68,7 @@ function splitStatements(source) {
   if (current.trim()) result.push(current.trim());
   return result;
 }
-for (const file of ['bootstrap.sql', 'V1__schema.sql', 'V2__reference_data.sql', 'examples/promotion_examples.sql']) {
+for (const file of ['database/bootstrap/bootstrap.sql', `${migrationDir}/V1__schema.sql`, `${migrationDir}/V2__reference_data.sql`, 'database/examples/promotion_examples.sql']) {
   const source = fs.readFileSync(path.join(root, file), 'utf8');
   const statements = splitStatements(source);
   for (const [index, sql] of statements.entries()) {
