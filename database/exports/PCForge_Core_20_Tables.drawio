@@ -1,0 +1,884 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net" agent="PCForge Core20 ERD" version="24.7.17" type="device" compressed="false">
+  <diagram id="overview" name="01 - Tổng quan 20 bảng">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="PCFORGE — PHƯƠNG ÁN CỐT LÕI 20 BẢNG" style="text;html=0;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=28;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1600" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="scope" value="Thiết kế đề xuất cho nhóm 4–5 người / khoảng 3 tháng. Một cửa hàng, một kho, mỗi sản phẩm là một SKU.&#10;Đây là sơ đồ mục tiêu, chưa phải schema SQL đang chạy. Mũi tên ở tab này biểu diễn luồng nghiệp vụ, không phải khóa ngoại." style="text;html=0;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="40" y="90" width="1700" height="85" as="geometry" />
+        </mxCell>
+        <mxCell id="account" value="TÀI KHOẢN · 2 bảng&#10;users&#10;user_addresses" style="rounded=1;html=0;whiteSpace=wrap;align=center;verticalAlign=middle;fontSize=20;spacing=18;strokeColor=#666666;fillColor=#dae8fc;" vertex="1" parent="1">
+          <mxGeometry x="40" y="220" width="450" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="catalog" value="SẢN PHẨM &amp; PHỤ KIỆN · 5 bảng&#10;categories · brands · products&#10;product_images · product_specs" style="rounded=1;html=0;whiteSpace=wrap;align=center;verticalAlign=middle;fontSize=20;spacing=18;strokeColor=#666666;fillColor=#d5e8d4;" vertex="1" parent="1">
+          <mxGeometry x="600" y="220" width="450" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="build" value="BUILD PC + AI · 2 bảng&#10;pc_builds&#10;pc_build_items" style="rounded=1;html=0;whiteSpace=wrap;align=center;verticalAlign=middle;fontSize=20;spacing=18;strokeColor=#666666;fillColor=#e1d5e7;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="220" width="450" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="promotion" value="KHUYẾN MÃI · 2 bảng&#10;promotions&#10;promotion_gifts" style="rounded=1;html=0;whiteSpace=wrap;align=center;verticalAlign=middle;fontSize=20;spacing=18;strokeColor=#666666;fillColor=#ffe6cc;" vertex="1" parent="1">
+          <mxGeometry x="40" y="610" width="450" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="commerce" value="GIỎ / ĐƠN / THANH TOÁN · 5 bảng&#10;carts · cart_items · orders&#10;order_items · payments" style="rounded=1;html=0;whiteSpace=wrap;align=center;verticalAlign=middle;fontSize=20;spacing=18;strokeColor=#666666;fillColor=#fff2cc;" vertex="1" parent="1">
+          <mxGeometry x="600" y="610" width="450" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="service" value="BẢO HÀNH / BẢO TRÌ · 3 bảng&#10;purchased_units · service_requests&#10;service_request_history" style="rounded=1;html=0;whiteSpace=wrap;align=center;verticalAlign=middle;fontSize=20;spacing=18;strokeColor=#666666;fillColor=#f8cecc;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="610" width="450" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="review" value="ĐÁNH GIÁ · 1 bảng&#10;reviews&#10;Chỉ khách đã mua" style="rounded=1;html=0;whiteSpace=wrap;align=center;verticalAlign=middle;fontSize=20;spacing=18;strokeColor=#666666;fillColor=#b1ddf0;" vertex="1" parent="1">
+          <mxGeometry x="600" y="1030" width="450" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-0" value="Đăng nhập / đặt hàng" edge="1" parent="1" source="account" target="commerce" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#666666;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-1" value="Catalog + thông số đã kiểm chứng" edge="1" parent="1" source="catalog" target="build" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#666666;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-2" value="Chọn hàng / kiểm tra tồn" edge="1" parent="1" source="catalog" target="commerce" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#666666;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-3" value="Thêm cấu hình vào giỏ" edge="1" parent="1" source="build" target="commerce" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#666666;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-4" value="Đủ ngưỡng → quà tặng" edge="1" parent="1" source="promotion" target="commerce" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#666666;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-5" value="Giao thành công → từng món được bảo hành" edge="1" parent="1" source="commerce" target="service" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#666666;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="flow-6" value="Mua thành công → đánh giá" edge="1" parent="1" source="commerce" target="review" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;endArrow=block;endFill=1;strokeColor=#666666;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="notes" value="QUY TẮC CỐT LÕI&#10;• Backend tính giá và kiểm tra tương thích; AI chỉ chọn sản phẩm có trong catalog.&#10;• Mỗi đơn tối đa một khuyến mãi; quà là dòng order_items giá 0 và phải trừ kho.&#10;• Đơn giữ snapshot địa chỉ/giá/chính sách; mỗi món có purchased_units riêng, serial có thể trống.&#10;• Dùng transaction và khóa duy nhất để chống vượt tồn, đặt trùng và callback lặp.&#10;• Không có đa kho, biến thể nhiều tầng, chia kiện, hoàn tiền một phần hoặc quản lý vật tư sửa chữa.&#10;• Báo cáo tổng hợp trực tiếp từ orders / order_items / payments.&#10;&#10;Mở tab “02 - ERD chi tiết” để xem đầy đủ cột và 28 quan hệ FK. Dùng View → Outline để di chuyển." style="text;html=0;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=18;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1360" width="1580" height="300" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="detail" name="02 - ERD chi tiết">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="PCFORGE — ERD ĐỀ XUẤT 20 BẢNG" style="text;html=0;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=30;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="2900" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" value="PK: khóa chính | FK: khóa ngoại | UK: duy nhất | NULL: không bắt buộc; các cột khác dự kiến NOT NULL.&#10;Đường nối: bảng cha → bảng con. Đầu cha: 1 hoặc 0..1 nếu FK nullable; đầu con: 0..N hoặc 0..1 nếu FK duy nhất.&#10;Các UNIQUE ghép, kiểm tra chéo và quy tắc nghiệp vụ nằm trong tooltip của bảng. Di chuột lên tiêu đề để xem. Sơ đồ không tự thay đổi SQL." style="text;html=0;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=17;" vertex="1" parent="1">
+          <mxGeometry x="40" y="90" width="2900" height="110" as="geometry" />
+        </mxCell>
+        <object id="users" label="users" tooltip="Tài khoản; mỗi người có một vai trò. Token đặt lại mật khẩu được băm.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#dae8fc;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="40" y="220" width="520" height="352" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="users.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="users">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="users.email" value="email : VARCHAR(254)  [UK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="users">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="users.password_hash" value="password_hash : VARCHAR(255)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="users">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="users.full_name" value="full_name : VARCHAR(150)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="users">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="users.phone" value="phone : VARCHAR(25)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="users">
+          <mxGeometry x="0" y="156" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="users.role" value="role : VARCHAR(20)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="users">
+          <mxGeometry x="0" y="184" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="users.status" value="status : VARCHAR(20)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="users">
+          <mxGeometry x="0" y="212" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="users.reset_token_hash" value="reset_token_hash : BINARY(32)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="users">
+          <mxGeometry x="0" y="240" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="users.reset_token_expires_at" value="reset_token_expires_at : DATETIME  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="users">
+          <mxGeometry x="0" y="268" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="users.created_at" value="created_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="users">
+          <mxGeometry x="0" y="296" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="users.updated_at" value="updated_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="users">
+          <mxGeometry x="0" y="324" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="user_addresses" label="user_addresses" tooltip="Sổ địa chỉ; backend đảm bảo tối đa một địa chỉ mặc định mỗi người.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#dae8fc;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="40" y="780" width="520" height="296" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="user_addresses.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="user_addresses">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="user_addresses.user_id" value="user_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="user_addresses">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="user_addresses.recipient_name" value="recipient_name : VARCHAR(150)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="user_addresses">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="user_addresses.recipient_phone" value="recipient_phone : VARCHAR(25)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="user_addresses">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="user_addresses.province_name" value="province_name : VARCHAR(100)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="user_addresses">
+          <mxGeometry x="0" y="156" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="user_addresses.ward_name" value="ward_name : VARCHAR(100)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="user_addresses">
+          <mxGeometry x="0" y="184" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="user_addresses.address_line" value="address_line : VARCHAR(500)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="user_addresses">
+          <mxGeometry x="0" y="212" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="user_addresses.is_default" value="is_default : BOOLEAN  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="user_addresses">
+          <mxGeometry x="0" y="240" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="user_addresses.created_at" value="created_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="user_addresses">
+          <mxGeometry x="0" y="268" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="reviews" label="reviews" tooltip="Đánh giá của người đã mua. UNIQUE(user_id, order_item_id); xác minh đúng sản phẩm và chủ đơn.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#b1ddf0;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="40" y="1350" width="520" height="296" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="reviews.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="reviews">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="reviews.user_id" value="user_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="reviews">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="reviews.product_id" value="product_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="reviews">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="reviews.order_item_id" value="order_item_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="reviews">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="reviews.rating" value="rating : SMALLINT  [1..5]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="reviews">
+          <mxGeometry x="0" y="156" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="reviews.content" value="content : TEXT  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="reviews">
+          <mxGeometry x="0" y="184" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="reviews.status" value="status : VARCHAR(20)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="reviews">
+          <mxGeometry x="0" y="212" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="reviews.created_at" value="created_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="reviews">
+          <mxGeometry x="0" y="240" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="reviews.updated_at" value="updated_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="reviews">
+          <mxGeometry x="0" y="268" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="categories" label="categories" tooltip="Danh mục phân cấp; COMPONENT hoặc ACCESSORY.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#d5e8d4;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="670" y="220" width="520" height="240" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="categories.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="categories">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="categories.parent_id" value="parent_id : BIGINT  [FK NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="categories">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="categories.name" value="name : VARCHAR(150)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="categories">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="categories.slug" value="slug : VARCHAR(180)  [UK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="categories">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="categories.category_group" value="category_group : VARCHAR(20)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="categories">
+          <mxGeometry x="0" y="156" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="categories.component_type" value="component_type : VARCHAR(30)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="categories">
+          <mxGeometry x="0" y="184" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="categories.is_active" value="is_active : BOOLEAN  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="categories">
+          <mxGeometry x="0" y="212" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="brands" label="brands" tooltip="Thương hiệu linh kiện và phụ kiện.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#d5e8d4;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="670" y="650" width="520" height="156" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="brands.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="brands">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="brands.name" value="name : VARCHAR(150)  [UK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="brands">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="brands.slug" value="slug : VARCHAR(180)  [UK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="brands">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="brands.logo_url" value="logo_url : VARCHAR(1000)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="brands">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="products" label="products" tooltip="Một dòng là một SKU bán cụ thể. stock_quantity là lượng còn được đặt. Giá VND. Không quản lý biến thể riêng.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#d5e8d4;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="670" y="1010" width="520" height="492" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="products.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="products">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="products.category_id" value="category_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="products">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="products.brand_id" value="brand_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="products">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="products.sku" value="sku : VARCHAR(80)  [UK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="products">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="products.name" value="name : VARCHAR(255)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="products">
+          <mxGeometry x="0" y="156" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="products.slug" value="slug : VARCHAR(280)  [UK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="products">
+          <mxGeometry x="0" y="184" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="products.description" value="description : LONGTEXT  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="products">
+          <mxGeometry x="0" y="212" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="products.price" value="price : DECIMAL(19,2)  [&gt;= 0]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="products">
+          <mxGeometry x="0" y="240" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="products.stock_quantity" value="stock_quantity : INT  [&gt;= 0]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="products">
+          <mxGeometry x="0" y="268" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="products.warranty_months" value="warranty_months : INT  [&gt;= 0]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="products">
+          <mxGeometry x="0" y="296" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="products.warranty_terms" value="warranty_terms : TEXT  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="products">
+          <mxGeometry x="0" y="324" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="products.requires_serial" value="requires_serial : BOOLEAN  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="products">
+          <mxGeometry x="0" y="352" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="products.status" value="status : VARCHAR(20)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="products">
+          <mxGeometry x="0" y="380" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="products.version" value="version : BIGINT  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="products">
+          <mxGeometry x="0" y="408" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="products.created_at" value="created_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="products">
+          <mxGeometry x="0" y="436" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="products.updated_at" value="updated_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="products">
+          <mxGeometry x="0" y="464" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="product_images" label="product_images" tooltip="Nhiều ảnh trên một SKU; sort_order quyết định thứ tự.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#d5e8d4;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="670" y="1750" width="520" height="184" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="product_images.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="product_images">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="product_images.product_id" value="product_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="product_images">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="product_images.image_url" value="image_url : VARCHAR(1000)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="product_images">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="product_images.alt_text" value="alt_text : VARCHAR(255)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="product_images">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="product_images.sort_order" value="sort_order : INT  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="product_images">
+          <mxGeometry x="0" y="156" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="product_specs" label="product_specs" tooltip="Quan hệ 1 : 0..1 với sản phẩm. Cột không áp dụng để NULL. JSON được kiểm tra theo component_type; không lặp nguồn dữ liệu. JSON chứa hỗ trợ CPU/BIOS, khe ổ, đầu nguồn và giới hạn lắp đặt.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#d5e8d4;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="670" y="2140" width="520" height="380" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="product_specs.product_id" value="product_id : BIGINT  [PK FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="product_specs">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="product_specs.component_type" value="component_type : VARCHAR(30)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="product_specs">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="product_specs.socket_code" value="socket_code : VARCHAR(40)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="product_specs">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="product_specs.memory_type" value="memory_type : VARCHAR(20)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="product_specs">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="product_specs.capacity_gb" value="capacity_gb : INT  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="product_specs">
+          <mxGeometry x="0" y="156" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="product_specs.form_factor" value="form_factor : VARCHAR(30)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="product_specs">
+          <mxGeometry x="0" y="184" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="product_specs.max_power_draw_w" value="max_power_draw_w : DECIMAL(8,2)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="product_specs">
+          <mxGeometry x="0" y="212" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="product_specs.psu_capacity_w" value="psu_capacity_w : INT  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="product_specs">
+          <mxGeometry x="0" y="240" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="product_specs.length_mm" value="length_mm : DECIMAL(8,2)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="product_specs">
+          <mxGeometry x="0" y="268" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="product_specs.specifications_json" value="specifications_json : JSON  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="product_specs">
+          <mxGeometry x="0" y="296" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="product_specs.source_url" value="source_url : VARCHAR(1000)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="product_specs">
+          <mxGeometry x="0" y="324" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="product_specs.verified_at" value="verified_at : DATETIME  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="product_specs">
+          <mxGeometry x="0" y="352" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="carts" label="carts" tooltip="Một giỏ hàng hiện tại cho mỗi tài khoản. Đặt hàng yêu cầu đăng nhập.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#fff2cc;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="1300" y="220" width="520" height="156" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="carts.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="carts">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="carts.user_id" value="user_id : BIGINT  [FK UK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="carts">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="carts.created_at" value="created_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="carts">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="carts.updated_at" value="updated_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="carts">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="cart_items" label="cart_items" tooltip="UNIQUE(cart_id, product_id). Giá chỉ được backend tính từ catalog khi xem trước/đặt hàng.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#fff2cc;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="1300" y="560" width="520" height="184" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="cart_items.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="cart_items">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="cart_items.cart_id" value="cart_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="cart_items">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="cart_items.product_id" value="product_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="cart_items">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="cart_items.quantity" value="quantity : INT  [&gt; 0]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="cart_items">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="cart_items.created_at" value="created_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="cart_items">
+          <mxGeometry x="0" y="156" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="orders" label="orders" tooltip="Snapshot địa chỉ và khuyến mãi. Một lần giao/đơn. total = subtotal + shipping_fee; quà giá 0. request_key chống tạo đơn trùng. Trừ kho khi tạo đơn, hoàn kho đúng một lần khi hủy/hết hạn.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#fff2cc;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="1300" y="940" width="520" height="744" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="orders.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.order_number" value="order_number : VARCHAR(50)  [UK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.request_key" value="request_key : VARCHAR(100)  [UK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.request_hash" value="request_hash : BINARY(32)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.user_id" value="user_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="156" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.promotion_id" value="promotion_id : BIGINT  [FK NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="184" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.promotion_snapshot" value="promotion_snapshot : JSON  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="212" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.recipient_name" value="recipient_name : VARCHAR(150)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="240" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.recipient_phone" value="recipient_phone : VARCHAR(25)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="268" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.shipping_address" value="shipping_address : JSON  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="296" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.subtotal" value="subtotal : DECIMAL(19,2)  [&gt;= 0]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="324" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.shipping_fee" value="shipping_fee : DECIMAL(19,2)  [&gt;= 0]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="352" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.total_amount" value="total_amount : DECIMAL(19,2)  [&gt;= 0]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="380" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.order_status" value="order_status : VARCHAR(30)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="408" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.payment_status" value="payment_status : VARCHAR(30)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="436" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.shipping_provider" value="shipping_provider : VARCHAR(80)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="464" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.tracking_number" value="tracking_number : VARCHAR(150)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="492" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.customer_note" value="customer_note : TEXT  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="520" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.payment_due_at" value="payment_due_at : DATETIME  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="548" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.stock_released_at" value="stock_released_at : DATETIME  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="576" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.shipped_at" value="shipped_at : DATETIME  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="604" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.delivered_at" value="delivered_at : DATETIME  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="632" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.cancelled_at" value="cancelled_at : DATETIME  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="660" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.created_at" value="created_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="688" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="orders.updated_at" value="updated_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="orders">
+          <mxGeometry x="0" y="716" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="order_items" label="order_items" tooltip="Giá/tên/chính sách là snapshot lúc đặt. Quà là dòng riêng, is_gift=true và unit_price=0. line_total=quantity*unit_price.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#fff2cc;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="1300" y="1990" width="520" height="380" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="order_items.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="order_items">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="order_items.order_id" value="order_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="order_items">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="order_items.product_id" value="product_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="order_items">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="order_items.sku_snapshot" value="sku_snapshot : VARCHAR(80)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="order_items">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="order_items.name_snapshot" value="name_snapshot : VARCHAR(255)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="order_items">
+          <mxGeometry x="0" y="156" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="order_items.unit_price" value="unit_price : DECIMAL(19,2)  [&gt;= 0]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="order_items">
+          <mxGeometry x="0" y="184" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="order_items.quantity" value="quantity : INT  [&gt; 0]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="order_items">
+          <mxGeometry x="0" y="212" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="order_items.line_total" value="line_total : DECIMAL(19,2)  [GENERATED]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="order_items">
+          <mxGeometry x="0" y="240" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="order_items.is_gift" value="is_gift : BOOLEAN  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="order_items">
+          <mxGeometry x="0" y="268" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="order_items.requires_serial_snapshot" value="requires_serial_snapshot : BOOLEAN  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="order_items">
+          <mxGeometry x="0" y="296" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="order_items.warranty_months_snapshot" value="warranty_months_snapshot : INT  [&gt;= 0]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="order_items">
+          <mxGeometry x="0" y="324" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="order_items.warranty_terms_snapshot" value="warranty_terms_snapshot : TEXT  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="order_items">
+          <mxGeometry x="0" y="352" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="payments" label="payments" tooltip="Mỗi dòng là một lần thử thanh toán. UNIQUE(provider, provider_transaction_id). Callback xác thực chữ ký, tiền và chuyển trạng thái có điều kiện. Chỉ hoàn toàn bộ giao dịch, tối đa một lần thành công.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#fff2cc;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="1300" y="2630" width="520" height="548" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="payments.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="payments">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="payments.order_id" value="order_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="payments">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="payments.payment_reference" value="payment_reference : VARCHAR(100)  [UK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="payments">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="payments.method" value="method : VARCHAR(30)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="payments">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="payments.provider" value="provider : VARCHAR(40)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="payments">
+          <mxGeometry x="0" y="156" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="payments.provider_transaction_id" value="provider_transaction_id : VARCHAR(150)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="payments">
+          <mxGeometry x="0" y="184" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="payments.amount" value="amount : DECIMAL(19,2)  [&gt; 0]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="payments">
+          <mxGeometry x="0" y="212" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="payments.status" value="status : VARCHAR(30)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="payments">
+          <mxGeometry x="0" y="240" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="payments.paid_at" value="paid_at : DATETIME  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="payments">
+          <mxGeometry x="0" y="268" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="payments.callback_processed_at" value="callback_processed_at : DATETIME  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="payments">
+          <mxGeometry x="0" y="296" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="payments.refund_status" value="refund_status : VARCHAR(20)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="payments">
+          <mxGeometry x="0" y="324" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="payments.refund_reference" value="refund_reference : VARCHAR(100)  [UK NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="payments">
+          <mxGeometry x="0" y="352" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="payments.provider_refund_id" value="provider_refund_id : VARCHAR(150)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="payments">
+          <mxGeometry x="0" y="380" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="payments.refund_amount" value="refund_amount : DECIMAL(19,2)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="payments">
+          <mxGeometry x="0" y="408" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="payments.refund_reason" value="refund_reason : TEXT  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="payments">
+          <mxGeometry x="0" y="436" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="payments.refunded_at" value="refunded_at : DATETIME  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="payments">
+          <mxGeometry x="0" y="464" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="payments.created_at" value="created_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="payments">
+          <mxGeometry x="0" y="492" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="payments.updated_at" value="updated_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="payments">
+          <mxGeometry x="0" y="520" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="promotions" label="promotions" tooltip="Chỉ khuyến mãi ngưỡng tiền tặng quà. Tối đa một chương trình/đơn, chọn priority cao nhất; nếu bằng nhau dùng id để phân xử. Ngưỡng không gồm ship/quà.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#ffe6cc;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="1930" y="220" width="520" height="324" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="promotions.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="promotions">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="promotions.name" value="name : VARCHAR(200)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="promotions">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="promotions.minimum_order_amount" value="minimum_order_amount : DECIMAL(19,2)  [&gt;= 0]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="promotions">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="promotions.threshold_operator" value="threshold_operator : VARCHAR(3)  [GT / GTE]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="promotions">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="promotions.start_at" value="start_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="promotions">
+          <mxGeometry x="0" y="156" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="promotions.end_at" value="end_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="promotions">
+          <mxGeometry x="0" y="184" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="promotions.priority" value="priority : INT  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="promotions">
+          <mxGeometry x="0" y="212" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="promotions.is_active" value="is_active : BOOLEAN  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="promotions">
+          <mxGeometry x="0" y="240" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="promotions.created_at" value="created_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="promotions">
+          <mxGeometry x="0" y="268" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="promotions.updated_at" value="updated_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="promotions">
+          <mxGeometry x="0" y="296" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="promotion_gifts" label="promotion_gifts" tooltip="UNIQUE(promotion_id, product_id). Một chương trình có nhiều món quà; quà phải còn hàng.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#ffe6cc;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="1930" y="790" width="520" height="156" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="promotion_gifts.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="promotion_gifts">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="promotion_gifts.promotion_id" value="promotion_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="promotion_gifts">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="promotion_gifts.product_id" value="product_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="promotion_gifts">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="promotion_gifts.quantity" value="quantity : INT  [&gt; 0]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="promotion_gifts">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="pc_builds" label="pc_builds" tooltip="Một cấu hình thủ công hoặc AI. Ngân sách mặc định chỉ thùng máy. AI chỉ chọn ID trong catalog; backend xác minh giá/tồn/tương thích. Thiếu thông số =&gt; UNKNOWN, không tự PASS.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#e1d5e7;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="1930" y="1160" width="520" height="408" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="pc_builds.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="pc_builds">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pc_builds.user_id" value="user_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="pc_builds">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pc_builds.name" value="name : VARCHAR(200)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="pc_builds">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pc_builds.budget" value="budget : DECIMAL(19,2)  [&gt; 0]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="pc_builds">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pc_builds.usage_purpose" value="usage_purpose : VARCHAR(30)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="pc_builds">
+          <mxGeometry x="0" y="156" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pc_builds.user_prompt" value="user_prompt : TEXT  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="pc_builds">
+          <mxGeometry x="0" y="184" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pc_builds.source" value="source : VARCHAR(10)  [MANUAL / AI]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="pc_builds">
+          <mxGeometry x="0" y="212" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pc_builds.status" value="status : VARCHAR(30)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="pc_builds">
+          <mxGeometry x="0" y="240" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pc_builds.estimated_total" value="estimated_total : DECIMAL(19,2)  [&gt;= 0]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="pc_builds">
+          <mxGeometry x="0" y="268" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pc_builds.ai_explanation" value="ai_explanation : TEXT  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="pc_builds">
+          <mxGeometry x="0" y="296" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pc_builds.validation_result_json" value="validation_result_json : JSON  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="pc_builds">
+          <mxGeometry x="0" y="324" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pc_builds.created_at" value="created_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="pc_builds">
+          <mxGeometry x="0" y="352" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pc_builds.updated_at" value="updated_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="pc_builds">
+          <mxGeometry x="0" y="380" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="pc_build_items" label="pc_build_items" tooltip="UNIQUE(build_id, product_id). Giá snapshot chỉ để tham khảo; kiểm tra lại khi thêm giỏ/đặt hàng.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#e1d5e7;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="1930" y="1830" width="520" height="184" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="pc_build_items.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="pc_build_items">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pc_build_items.build_id" value="build_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="pc_build_items">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pc_build_items.product_id" value="product_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="pc_build_items">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pc_build_items.quantity" value="quantity : INT  [&gt; 0]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="pc_build_items">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="pc_build_items.price_snapshot" value="price_snapshot : DECIMAL(19,2)  [&gt;= 0]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="pc_build_items">
+          <mxGeometry x="0" y="156" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="purchased_units" label="purchased_units" tooltip="Từng món đã giao. UNIQUE(order_item_id, unit_index); số món phải khớp số lượng dòng hàng. Serial có thể trống cho phụ kiện, asset_code luôn duy nhất. Bảo hành bắt đầu lúc giao thành công.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#f8cecc;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="2560" y="220" width="520" height="324" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="purchased_units.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="purchased_units">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="purchased_units.order_item_id" value="order_item_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="purchased_units">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="purchased_units.unit_index" value="unit_index : INT  [&gt; 0]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="purchased_units">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="purchased_units.asset_code" value="asset_code : VARCHAR(80)  [UK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="purchased_units">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="purchased_units.serial_number" value="serial_number : VARCHAR(150)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="purchased_units">
+          <mxGeometry x="0" y="156" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="purchased_units.warranty_start_at" value="warranty_start_at : DATETIME  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="purchased_units">
+          <mxGeometry x="0" y="184" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="purchased_units.warranty_end_at" value="warranty_end_at : DATETIME  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="purchased_units">
+          <mxGeometry x="0" y="212" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="purchased_units.warranty_terms_snapshot" value="warranty_terms_snapshot : TEXT  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="purchased_units">
+          <mxGeometry x="0" y="240" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="purchased_units.status" value="status : VARCHAR(20)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="purchased_units">
+          <mxGeometry x="0" y="268" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="purchased_units.created_at" value="created_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="purchased_units">
+          <mxGeometry x="0" y="296" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="service_requests" label="service_requests" tooltip="Một phiếu cho một món hàng. Kiểm tra customer_id là chủ đơn; assigned_staff_id phải có quyền. Bảo trì có thể ngoài hạn bảo hành. Phí thu tại cửa hàng; khách chấp thuận trước khi làm. File ảnh lưu ngoài DB.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#f8cecc;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="2560" y="850" width="520" height="604" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="service_requests.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.request_number" value="request_number : VARCHAR(50)  [UK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.purchased_unit_id" value="purchased_unit_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.customer_id" value="customer_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.assigned_staff_id" value="assigned_staff_id : BIGINT  [FK NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="156" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.type" value="type : VARCHAR(20)  [WARRANTY / MAINTENANCE]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="184" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.description" value="description : TEXT  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="212" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.appointment_at" value="appointment_at : DATETIME  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="240" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.diagnosis" value="diagnosis : TEXT  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="268" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.work_performed" value="work_performed : TEXT  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="296" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.estimated_cost" value="estimated_cost : DECIMAL(19,2)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="324" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.customer_approved_at" value="customer_approved_at : DATETIME  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="352" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.final_cost" value="final_cost : DECIMAL(19,2)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="380" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.payment_status" value="payment_status : VARCHAR(20)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="408" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.result_note" value="result_note : TEXT  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="436" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.attachment_urls_json" value="attachment_urls_json : JSON  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="464" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.status" value="status : VARCHAR(30)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="492" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.created_at" value="created_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="520" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.completed_at" value="completed_at : DATETIME  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="548" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_requests.returned_at" value="returned_at : DATETIME  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_requests">
+          <mxGeometry x="0" y="576" width="520" height="28" as="geometry" />
+        </mxCell>
+        <object id="service_request_history" label="service_request_history" tooltip="Nhật ký xử lý: tiếp nhận, chẩn đoán, sửa/bảo trì, hoàn tất, trả hàng. Có ghi chú cho khách hoặc nội bộ.">
+          <mxCell style="swimlane;html=0;startSize=44;horizontal=1;collapsible=0;rounded=0;fontStyle=1;fontSize=20;align=left;spacingLeft=12;fillColor=#f8cecc;swimlaneFillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+            <mxGeometry x="2560" y="1800" width="520" height="268" as="geometry" />
+          </mxCell>
+        </object>
+        <mxCell id="service_request_history.id" value="id : BIGINT  [PK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;fontStyle=1;" vertex="1" parent="service_request_history">
+          <mxGeometry x="0" y="44" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_request_history.service_request_id" value="service_request_id : BIGINT  [FK]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_request_history">
+          <mxGeometry x="0" y="72" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_request_history.changed_by" value="changed_by : BIGINT  [FK NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_request_history">
+          <mxGeometry x="0" y="100" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_request_history.from_status" value="from_status : VARCHAR(30)  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_request_history">
+          <mxGeometry x="0" y="128" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_request_history.to_status" value="to_status : VARCHAR(30)  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_request_history">
+          <mxGeometry x="0" y="156" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_request_history.note" value="note : TEXT  [NULL]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_request_history">
+          <mxGeometry x="0" y="184" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_request_history.is_customer_visible" value="is_customer_visible : BOOLEAN  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_request_history">
+          <mxGeometry x="0" y="212" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="service_request_history.created_at" value="created_at : DATETIME  [—]" style="text;html=0;align=left;verticalAlign=middle;spacingLeft=10;fontFamily=Consolas;fontSize=12;overflow=hidden;" vertex="1" parent="service_request_history">
+          <mxGeometry x="0" y="240" width="520" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-0" value="" edge="1" parent="1" source="users.id" target="user_addresses.user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-1" value="" edge="1" parent="1" source="categories.id" target="categories.parent_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERzeroToOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-2" value="" edge="1" parent="1" source="categories.id" target="products.category_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-3" value="" edge="1" parent="1" source="brands.id" target="products.brand_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-4" value="" edge="1" parent="1" source="products.id" target="product_images.product_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-5" value="" edge="1" parent="1" source="products.id" target="product_specs.product_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToOne;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-6" value="" edge="1" parent="1" source="users.id" target="carts.user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToOne;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-7" value="" edge="1" parent="1" source="carts.id" target="cart_items.cart_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-8" value="" edge="1" parent="1" source="products.id" target="cart_items.product_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-9" value="" edge="1" parent="1" source="users.id" target="orders.user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-10" value="" edge="1" parent="1" source="promotions.id" target="orders.promotion_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERzeroToOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-11" value="" edge="1" parent="1" source="orders.id" target="order_items.order_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-12" value="" edge="1" parent="1" source="products.id" target="order_items.product_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-13" value="" edge="1" parent="1" source="orders.id" target="payments.order_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-14" value="" edge="1" parent="1" source="promotions.id" target="promotion_gifts.promotion_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-15" value="" edge="1" parent="1" source="products.id" target="promotion_gifts.product_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-16" value="" edge="1" parent="1" source="users.id" target="pc_builds.user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-17" value="" edge="1" parent="1" source="pc_builds.id" target="pc_build_items.build_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-18" value="" edge="1" parent="1" source="products.id" target="pc_build_items.product_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-19" value="" edge="1" parent="1" source="order_items.id" target="purchased_units.order_item_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-20" value="" edge="1" parent="1" source="purchased_units.id" target="service_requests.purchased_unit_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-21" value="" edge="1" parent="1" source="users.id" target="service_requests.customer_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-22" value="" edge="1" parent="1" source="users.id" target="service_requests.assigned_staff_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERzeroToOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-23" value="" edge="1" parent="1" source="service_requests.id" target="service_request_history.service_request_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-24" value="" edge="1" parent="1" source="users.id" target="service_request_history.changed_by" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERzeroToOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-25" value="" edge="1" parent="1" source="users.id" target="reviews.user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-26" value="" edge="1" parent="1" source="products.id" target="reviews.product_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-27" value="" edge="1" parent="1" source="order_items.id" target="reviews.order_item_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=11;labelBackgroundColor=#ffffff;strokeWidth=1.5;strokeColor=#707070;startArrow=ERmandOne;endArrow=ERzeroToMany;startSize=16;endSize=16;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="rules" value="PHẠM VI VÀ RÀNG BUỘC QUAN TRỌNG&#10;1. users.role: CUSTOMER / STAFF / ADMIN. Mỗi SKU là một products; chưa có nhóm biến thể.&#10;2. stock_quantity là số lượng khả dụng. Tạo đơn/trừ kho/quà trong một transaction; hủy/hết hạn hoàn kho đúng một lần.&#10;3. orders.total_amount = subtotal + shipping_fee. Tiền VND dùng DECIMAL / BigDecimal. is_gift=true → unit_price=0.&#10;4. Snapshot chính sách ở order_items → purchased_units khi giao hàng; không tính lại quyền cũ từ products hiện tại.&#10;5. product_specs JSON có schema riêng theo loại; socket giống nhau chưa đủ, còn CPU support/BIOS, RAM, nguồn, kích thước.&#10;6. pc_builds: ngân sách chỉ thùng máy; báo giá/tồn được kiểm tra lại lúc đặt hàng.&#10;7. Callback thanh toán phải xác thực, idempotent; có xử lý thanh toán đến muộn sau khi đơn bị hủy/hết hạn.&#10;8. Bảo trì ngoài bảo hành được phép; thu phí tại cửa hàng, khách chấp thuận trước khi làm.&#10;9. FK chỉ bảo đảm bản ghi tồn tại; backend phải kiểm tra quyền sở hữu, đúng SKU, trạng thái và số lượng.&#10;10. Các bảng đang dùng bởi đơn/bảo hành nên được ẩn/ngừng bán thay vì xóa cứng." style="text;html=0;whiteSpace=wrap;align=left;verticalAlign=top;fontSize=18;" vertex="1" parent="1">
+          <mxGeometry x="40" y="3520" width="3040" height="400" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

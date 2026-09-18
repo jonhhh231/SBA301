@@ -1,0 +1,805 @@
+-- ============================================================================
+-- PCFORGE CORE20 — DATABASE HOÀN CHỈNH (THIẾT KẾ 20 BẢNG)
+-- ============================================================================
+-- Định dạng: văn bản UTF-8 chứa SQL MySQL và hướng dẫn bằng chú thích.
+-- File này KHÔNG tự tạo database chỉ bằng việc mở/đọc file.
+-- Chỉ khi bạn chủ động thực thi SQL bằng MySQL client/Workbench thì DB mới được tạo.
+-- Mục tiêu: nhóm 4–5 người, khoảng 3 tháng, Spring Boot + React + MySQL.
+-- Phiên bản MySQL: >= 8.0.16; khuyến nghị MySQL 8.4 LTS.
+--
+-- PHẠM VI
+-- - Một cửa hàng/một kho; một products tương ứng một SKU bán cụ thể.
+-- - Bán linh kiện và phụ kiện; tồn kho trực tiếp trên products.
+-- - Giỏ hàng, đơn hàng, COD và VNPay; hoàn toàn bộ một giao dịch đã thu tiền.
+-- - Khuyến mãi theo ngưỡng tiền tặng quà; tối đa một chương trình/đơn.
+-- - Build PC thủ công và AI chọn linh kiện từ catalog của cửa hàng.
+-- - Bảo hành từng món hàng, kể cả phụ kiện không có serial.
+-- - Bảo trì có báo phí/chấp thuận đơn giản; thu phí tại cửa hàng.
+-- - Đánh giá của người mua và bốn view báo cáo.
+--
+-- CẤU TRÚC FILE
+-- A. Hướng dẫn và danh sách bảng.
+-- B. Tạo database pcforge_core20 (khi bạn chủ động chạy SQL).
+-- C. Toàn bộ 20 bảng: cột, PK/FK, UNIQUE, CHECK, index; bốn view báo cáo.
+-- D. Dữ liệu nền: 20 thương hiệu và 17 danh mục, không có tài khoản/mật khẩu mẫu.
+-- E. Hợp đồng thông số JSON và quy tắc backend bắt buộc.
+--
+-- CÁCH IMPORT SAU NÀY (KHÔNG CẦN LÀM NẾU CHỈ MUỐN XEM THIẾT KẾ)
+-- 1. Mở MySQL Workbench, kết nối MySQL >= 8.0.16.
+-- 2. Mở file này bằng bộ lọc All files hoặc sao chép toàn bộ vào SQL Editor.
+-- 3. Thực thi trên một database pcforge_core20 trống. Chạy đúng một lần.
+--    Có thể đổi đuôi thành .sql; không cần sửa nội dung.
+-- 4. Tài khoản MySQL cần quyền CREATE DATABASE, CREATE TABLE, CREATE VIEW và INSERT.
+-- 5. Không chạy bộ này vào schema 145 bảng cũ, hoặc chạy chung với migration cũ.
+--    CREATE DATABASE IF NOT EXISTS không làm script idempotent: CREATE TABLE vẫn
+--    báo lỗi nếu bảng đã tồn tại. DDL MySQL tự commit, không rollback cả file.
+-- 6. Sau import có 20 BASE TABLE và 4 VIEW; view không phải bảng nghiệp vụ bổ sung.
+--    Nếu tương lai dùng Flyway thì bảng lịch sử của Flyway là bảng kỹ thuật riêng.
+--
+-- QUY ƯỚC
+-- - Tiền VND, DECIMAL(19,2), chỉ cho phần thập phân .00; Java dùng BigDecimal.
+-- - Giá đã gồm thuế, không cộng thuế lần hai. Quà có unit_price = 0.
+-- - Thời gian UTC, DATETIME(6); frontend hiển thị theo múi giờ người dùng.
+-- - PK là BIGINT; API nên trả ID dưới dạng chuỗi để tránh giới hạn số JavaScript.
+-- - ENUM nghiệp vụ dùng VARCHAR + CHECK để thuận tiện mapping Java enum.
+-- - FK mặc định RESTRICT; không xóa dây chuyền lịch sử đơn/bảo hành.
+-- - NULL ở thông số nghĩa là chưa biết/không áp dụng, không đồng nghĩa tương thích.
+-- - Generated column là chỉ đọc trong JPA (insertable=false, updatable=false).
+--
+-- DANH SÁCH 20 BẢNG
+-- 01 users                    : tài khoản; CUSTOMER / STAFF / ADMIN.
+-- 02 user_addresses           : sổ địa chỉ, tối đa một địa chỉ mặc định.
+-- 03 categories               : danh mục phân cấp linh kiện/phụ kiện.
+-- 04 brands                   : thương hiệu.
+-- 05 products                 : SKU, giá, tồn khả dụng, chính sách bảo hành.
+-- 06 product_images           : nhiều ảnh của SKU.
+-- 07 product_specs            : thông số cột có kiểu và JSON theo loại linh kiện.
+-- 08 promotions               : thời gian, ngưỡng và thứ tự ưu tiên khuyến mãi.
+-- 09 promotion_gifts          : sản phẩm/số lượng quà của chương trình.
+-- 10 carts                    : một giỏ hiện tại cho mỗi tài khoản.
+-- 11 cart_items               : SKU và số lượng trong giỏ.
+-- 12 orders                   : đơn, snapshot địa chỉ/khuyến mãi, trạng thái.
+-- 13 order_items              : dòng hàng mua/quà, snapshot giá/bảo hành.
+-- 14 payments                 : lần thử thanh toán, callback, hoàn tiền toàn bộ.
+-- 15 pc_builds                : ngân sách, nhu cầu, giải thích AI, kết quả kiểm tra.
+-- 16 pc_build_items           : linh kiện trong cấu hình và giá tham khảo lúc lưu.
+-- 17 purchased_units          : từng món đã giao, mã nội bộ, serial, hạn bảo hành.
+-- 18 service_requests         : phiếu bảo hành/bảo trì của một món hàng.
+-- 19 service_request_history  : lịch sử xử lý phiếu và người thực hiện.
+-- 20 reviews                  : đánh giá gắn với sản phẩm và dòng hàng đã mua.
+--
+-- Điều chỉnh so với bản phác thảo draw.io:
+-- - Thêm default_owner để chặn hai địa chỉ mặc định bằng UNIQUE.
+-- - purchased_units thêm product_id và serial_normalized; FK ghép đảm bảo đúng SKU.
+-- - reviews dùng FK ghép order_item_id + product_id để không đánh giá nhầm SKU.
+-- - Thêm active_unit_id để chặn nhiều phiếu dịch vụ đang mở trên cùng một món.
+-- - Thêm auth_version, version, thời điểm thanh toán dịch vụ và index cần thiết.
+-- - request_key duy nhất trong phạm vi một user, không phải toàn hệ thống.
+-- - Luồng sẵn sàng build yêu cầu snapshot kết quả kiểm tra và không vượt ngân sách.
+-- Đây là thiết kế SQL đầy đủ hơn sơ đồ phác thảo; vẫn đúng 20 bảng nghiệp vụ.
+
+-- ============================================================================
+-- B. DATABASE
+-- ============================================================================
+CREATE DATABASE IF NOT EXISTS pcforge_core20
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+USE pcforge_core20;
+
+-- ============================================================================
+-- C. TABLES / CONSTRAINTS / INDEXES / VIEWS
+-- ============================================================================
+-- PCForge Core20. MySQL >= 8.0.16, recommended 8.4 LTS / InnoDB.
+-- Apply ONCE to an empty schema; this is a standalone SQL document.
+-- UTC DATETIME(6). VND only; DECIMAL amounts are tax-inclusive whole dong.
+-- No triggers: checkout, stock, authorization and state transitions belong in services.
+SET NAMES utf8mb4;
+SET time_zone = '+00:00';
+
+-- 01. ACCOUNTS
+CREATE TABLE users (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(254) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  full_name VARCHAR(150) NOT NULL,
+  phone VARCHAR(25),
+  role VARCHAR(20) NOT NULL DEFAULT 'CUSTOMER',
+  status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+  reset_token_hash BINARY(32),
+  reset_token_expires_at DATETIME(6),
+  auth_version BIGINT NOT NULL DEFAULT 0,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_core_user_email (email),
+  UNIQUE KEY uk_core_reset_token (reset_token_hash),
+  CHECK (role IN ('CUSTOMER','STAFF','ADMIN')),
+  CHECK (status IN ('ACTIVE','BLOCKED','DEACTIVATED')),
+  CHECK ((reset_token_hash IS NULL) = (reset_token_expires_at IS NULL)),
+  CHECK (auth_version >= 0)
+) ENGINE=InnoDB;
+
+CREATE TABLE user_addresses (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  recipient_name VARCHAR(150) NOT NULL,
+  recipient_phone VARCHAR(25) NOT NULL,
+  province_name VARCHAR(100) NOT NULL,
+  ward_name VARCHAR(100) NOT NULL,
+  address_line VARCHAR(500) NOT NULL,
+  is_default BOOLEAN NOT NULL DEFAULT FALSE,
+  default_owner BIGINT GENERATED ALWAYS AS (CASE WHEN is_default = 1 THEN user_id ELSE NULL END) STORED,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_core_default_address (default_owner),
+  KEY ix_core_address_user (user_id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  CHECK (is_default IN (0,1))
+) ENGINE=InnoDB;
+
+-- 02. CATALOG / ONE PRODUCT = ONE SKU
+CREATE TABLE categories (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  parent_id BIGINT,
+  name VARCHAR(150) NOT NULL,
+  slug VARCHAR(180) NOT NULL,
+  category_group VARCHAR(20) NOT NULL,
+  component_type VARCHAR(30),
+  sort_order INT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  UNIQUE KEY uk_core_category_slug (slug),
+  FOREIGN KEY (parent_id) REFERENCES categories(id),
+  CHECK (category_group IN ('COMPONENT','ACCESSORY')),
+  CHECK (component_type IS NULL OR component_type IN ('CPU','MOTHERBOARD','RAM','GPU','STORAGE','PSU','CASE','COOLER','FAN','MONITOR','OTHER')),
+  CHECK (is_active IN (0,1))
+) ENGINE=InnoDB;
+
+CREATE TABLE brands (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  slug VARCHAR(180) NOT NULL,
+  logo_url VARCHAR(1000),
+  UNIQUE KEY uk_core_brand_name (name),
+  UNIQUE KEY uk_core_brand_slug (slug)
+) ENGINE=InnoDB;
+
+CREATE TABLE products (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  category_id BIGINT NOT NULL,
+  brand_id BIGINT NOT NULL,
+  sku VARCHAR(80) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  slug VARCHAR(280) NOT NULL,
+  description LONGTEXT,
+  price DECIMAL(19,2) NOT NULL,
+  stock_quantity INT NOT NULL DEFAULT 0,
+  warranty_months INT NOT NULL DEFAULT 0,
+  warranty_terms TEXT,
+  requires_serial BOOLEAN NOT NULL DEFAULT FALSE,
+  status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+  version BIGINT NOT NULL DEFAULT 0,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_core_product_sku (sku),
+  UNIQUE KEY uk_core_product_slug (slug),
+  KEY ix_core_product_listing (category_id, status, price, id),
+  KEY ix_core_product_brand (brand_id, status, price),
+  KEY ix_core_product_stock (status, stock_quantity),
+  FULLTEXT KEY ft_core_product_search (name, description),
+  FOREIGN KEY (category_id) REFERENCES categories(id),
+  FOREIGN KEY (brand_id) REFERENCES brands(id),
+  CHECK (price >= 0 AND price = FLOOR(price)),
+  CHECK (stock_quantity >= 0 AND warranty_months >= 0 AND version >= 0),
+  CHECK (requires_serial IN (0,1)),
+  CHECK (status IN ('DRAFT','ACTIVE','ARCHIVED'))
+) ENGINE=InnoDB;
+
+CREATE TABLE product_images (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  product_id BIGINT NOT NULL,
+  image_url VARCHAR(1000) NOT NULL,
+  alt_text VARCHAR(255),
+  sort_order INT NOT NULL DEFAULT 0,
+  KEY ix_core_product_image (product_id, sort_order),
+  FOREIGN KEY (product_id) REFERENCES products(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE product_specs (
+  product_id BIGINT NOT NULL PRIMARY KEY,
+  component_type VARCHAR(30) NOT NULL,
+  socket_code VARCHAR(40),
+  memory_type VARCHAR(20),
+  capacity_gb INT,
+  form_factor VARCHAR(30),
+  max_power_draw_w DECIMAL(8,2),
+  psu_capacity_w INT,
+  length_mm DECIMAL(8,2),
+  specifications_json JSON NOT NULL,
+  schema_version INT NOT NULL DEFAULT 1,
+  source_url VARCHAR(1000),
+  verified_at DATETIME(6),
+  KEY ix_core_specs_socket (component_type, socket_code),
+  KEY ix_core_specs_memory (component_type, memory_type, capacity_gb),
+  KEY ix_core_specs_psu (component_type, psu_capacity_w),
+  FOREIGN KEY (product_id) REFERENCES products(id),
+  CHECK (component_type IN ('CPU','MOTHERBOARD','RAM','GPU','STORAGE','PSU','CASE','COOLER','FAN','MONITOR','OTHER')),
+  CHECK (capacity_gb > 0 AND max_power_draw_w >= 0 AND psu_capacity_w > 0 AND length_mm > 0),
+  CHECK (schema_version > 0 AND JSON_TYPE(specifications_json) = 'OBJECT'),
+  CHECK (verified_at IS NULL OR source_url IS NOT NULL)
+) ENGINE=InnoDB;
+
+-- 03. GIFT PROMOTIONS
+CREATE TABLE promotions (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(200) NOT NULL,
+  minimum_order_amount DECIMAL(19,2) NOT NULL,
+  threshold_operator VARCHAR(3) NOT NULL DEFAULT 'GTE',
+  start_at DATETIME(6) NOT NULL,
+  end_at DATETIME(6) NOT NULL,
+  priority INT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  KEY ix_core_promotion_window (is_active, start_at, end_at),
+  CHECK (minimum_order_amount >= 0 AND minimum_order_amount = FLOOR(minimum_order_amount)),
+  CHECK (threshold_operator IN ('GT','GTE')),
+  CHECK (end_at > start_at AND is_active IN (0,1))
+) ENGINE=InnoDB;
+
+CREATE TABLE promotion_gifts (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  promotion_id BIGINT NOT NULL,
+  product_id BIGINT NOT NULL,
+  quantity INT NOT NULL,
+  UNIQUE KEY uk_core_promotion_gift (promotion_id, product_id),
+  FOREIGN KEY (promotion_id) REFERENCES promotions(id),
+  FOREIGN KEY (product_id) REFERENCES products(id),
+  CHECK (quantity > 0)
+) ENGINE=InnoDB;
+
+-- 04. CART / ORDERS / PAYMENTS
+CREATE TABLE carts (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_core_cart_user (user_id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE cart_items (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  cart_id BIGINT NOT NULL,
+  product_id BIGINT NOT NULL,
+  quantity INT NOT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_core_cart_product (cart_id, product_id),
+  FOREIGN KEY (cart_id) REFERENCES carts(id),
+  FOREIGN KEY (product_id) REFERENCES products(id),
+  CHECK (quantity > 0)
+) ENGINE=InnoDB;
+
+CREATE TABLE orders (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  order_number VARCHAR(50) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  user_id BIGINT NOT NULL,
+  request_key VARCHAR(100) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  request_hash BINARY(32) NOT NULL,
+  promotion_id BIGINT,
+  promotion_snapshot JSON,
+  recipient_name VARCHAR(150) NOT NULL,
+  recipient_phone VARCHAR(25) NOT NULL,
+  shipping_address JSON NOT NULL,
+  subtotal DECIMAL(19,2) NOT NULL,
+  shipping_fee DECIMAL(19,2) NOT NULL DEFAULT 0,
+  total_amount DECIMAL(19,2) NOT NULL,
+  order_status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+  payment_status VARCHAR(30) NOT NULL DEFAULT 'UNPAID',
+  shipping_provider VARCHAR(80),
+  tracking_number VARCHAR(150),
+  customer_note TEXT,
+  payment_due_at DATETIME(6),
+  stock_released_at DATETIME(6),
+  shipped_at DATETIME(6),
+  delivered_at DATETIME(6),
+  cancelled_at DATETIME(6),
+  cancellation_reason VARCHAR(1000),
+  version BIGINT NOT NULL DEFAULT 0,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_core_order_number (order_number),
+  UNIQUE KEY uk_core_order_request (user_id, request_key),
+  KEY ix_core_order_customer (user_id, created_at),
+  KEY ix_core_order_queue (order_status, created_at),
+  KEY ix_core_order_expiry (order_status, payment_status, payment_due_at),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (promotion_id) REFERENCES promotions(id),
+  CHECK ((promotion_id IS NULL) = (promotion_snapshot IS NULL)),
+  CHECK (promotion_snapshot IS NULL OR JSON_TYPE(promotion_snapshot) = 'OBJECT'),
+  CHECK (JSON_TYPE(shipping_address) = 'OBJECT'),
+  CHECK (subtotal >= 0 AND shipping_fee >= 0 AND total_amount = subtotal + shipping_fee),
+  CHECK (subtotal = FLOOR(subtotal) AND shipping_fee = FLOOR(shipping_fee)),
+  CHECK (order_status IN ('PENDING','CONFIRMED','PROCESSING','SHIPPED','DELIVERED','CANCELLED')),
+  CHECK (payment_status IN ('UNPAID','PENDING','PAID','REFUND_PENDING','REFUNDED')),
+  CHECK (version >= 0),
+  CHECK (payment_due_at IS NULL OR payment_due_at > created_at),
+  CHECK (order_status <> 'CANCELLED' OR cancelled_at IS NOT NULL),
+  CHECK (stock_released_at IS NULL OR order_status = 'CANCELLED'),
+  CHECK (order_status NOT IN ('SHIPPED','DELIVERED') OR shipped_at IS NOT NULL),
+  CHECK (order_status <> 'DELIVERED' OR delivered_at IS NOT NULL),
+  CHECK (delivered_at IS NULL OR (shipped_at IS NOT NULL AND delivered_at >= shipped_at))
+) ENGINE=InnoDB;
+
+CREATE TABLE order_items (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT NOT NULL,
+  product_id BIGINT NOT NULL,
+  sku_snapshot VARCHAR(80) NOT NULL,
+  name_snapshot VARCHAR(255) NOT NULL,
+  unit_price DECIMAL(19,2) NOT NULL,
+  quantity INT NOT NULL,
+  line_total DECIMAL(19,2) GENERATED ALWAYS AS (unit_price * quantity) STORED,
+  is_gift BOOLEAN NOT NULL DEFAULT FALSE,
+  requires_serial_snapshot BOOLEAN NOT NULL DEFAULT FALSE,
+  warranty_months_snapshot INT NOT NULL DEFAULT 0,
+  warranty_terms_snapshot TEXT,
+  UNIQUE KEY uk_core_order_product_kind (order_id, product_id, is_gift),
+  UNIQUE KEY uk_core_item_product (id, product_id),
+  FOREIGN KEY (order_id) REFERENCES orders(id),
+  FOREIGN KEY (product_id) REFERENCES products(id),
+  CHECK (unit_price >= 0 AND unit_price = FLOOR(unit_price) AND quantity > 0),
+  CHECK (is_gift IN (0,1) AND requires_serial_snapshot IN (0,1)),
+  CHECK (is_gift = 0 OR unit_price = 0),
+  CHECK (warranty_months_snapshot >= 0)
+) ENGINE=InnoDB;
+
+CREATE TABLE payments (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT NOT NULL,
+  payment_reference VARCHAR(100) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  method VARCHAR(20) NOT NULL,
+  provider VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin,
+  provider_transaction_id VARCHAR(150) CHARACTER SET ascii COLLATE ascii_bin,
+  amount DECIMAL(19,2) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  paid_at DATETIME(6),
+  callback_processed_at DATETIME(6),
+  refund_status VARCHAR(20) NOT NULL DEFAULT 'NONE',
+  refund_reference VARCHAR(100) CHARACTER SET ascii COLLATE ascii_bin,
+  provider_refund_id VARCHAR(150) CHARACTER SET ascii COLLATE ascii_bin,
+  refund_amount DECIMAL(19,2),
+  refund_reason VARCHAR(1000),
+  refunded_at DATETIME(6),
+  version BIGINT NOT NULL DEFAULT 0,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_core_payment_reference (payment_reference),
+  UNIQUE KEY uk_core_provider_transaction (provider, provider_transaction_id),
+  UNIQUE KEY uk_core_refund_reference (refund_reference),
+  UNIQUE KEY uk_core_provider_refund (provider, provider_refund_id),
+  KEY ix_core_payment_order (order_id, status),
+  KEY ix_core_payment_refund_queue (refund_status, updated_at),
+  KEY ix_core_payment_paid (status, paid_at),
+  FOREIGN KEY (order_id) REFERENCES orders(id),
+  CHECK (method IN ('COD','VNPAY')),
+  CHECK ((method = 'COD' AND provider IS NULL AND provider_transaction_id IS NULL AND provider_refund_id IS NULL)
+      OR (method = 'VNPAY' AND provider IS NOT NULL AND provider = 'VNPAY')),
+  CHECK (amount > 0 AND amount = FLOOR(amount)),
+  CHECK (status IN ('PENDING','SUCCEEDED','FAILED','CANCELLED','EXPIRED')),
+  CHECK ((status = 'SUCCEEDED') = (paid_at IS NOT NULL)),
+  CHECK (status <> 'SUCCEEDED' OR method = 'COD' OR provider_transaction_id IS NOT NULL),
+  CHECK (refund_status IN ('NONE','PENDING','SUCCEEDED','FAILED')),
+  CHECK ((refund_status = 'NONE' AND refund_reference IS NULL AND refund_amount IS NULL AND refund_reason IS NULL AND refunded_at IS NULL AND provider_refund_id IS NULL)
+      OR (refund_status <> 'NONE' AND status = 'SUCCEEDED' AND refund_reference IS NOT NULL AND refund_amount IS NOT NULL AND refund_amount = amount AND refund_reason IS NOT NULL)),
+  CHECK ((refund_status = 'SUCCEEDED') = (refunded_at IS NOT NULL)),
+  CHECK (refunded_at IS NULL OR refunded_at >= paid_at),
+  CHECK (version >= 0)
+) ENGINE=InnoDB;
+
+-- 05. PC BUILDER / AI
+CREATE TABLE pc_builds (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  name VARCHAR(200) NOT NULL,
+  budget DECIMAL(19,2) NOT NULL,
+  usage_purpose VARCHAR(30) NOT NULL,
+  user_prompt TEXT,
+  source VARCHAR(10) NOT NULL DEFAULT 'MANUAL',
+  status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+  estimated_total DECIMAL(19,2) NOT NULL DEFAULT 0,
+  ai_model VARCHAR(100),
+  ai_explanation TEXT,
+  validation_result_json JSON,
+  version BIGINT NOT NULL DEFAULT 0,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  KEY ix_core_build_user (user_id, updated_at),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  CHECK (budget > 0 AND budget = FLOOR(budget)),
+  CHECK (estimated_total >= 0 AND estimated_total = FLOOR(estimated_total)),
+  CHECK (usage_purpose IN ('OFFICE','GAMING','PROGRAMMING','VIDEO_EDITING','RENDER_3D','OTHER')),
+  CHECK (source IN ('MANUAL','AI')),
+  CHECK (status IN ('DRAFT','GENERATING','READY','NO_SOLUTION','FAILED')),
+  CHECK (validation_result_json IS NULL OR JSON_TYPE(validation_result_json) = 'OBJECT'),
+  CHECK (status <> 'READY' OR (validation_result_json IS NOT NULL AND estimated_total <= budget)),
+  CHECK (version >= 0)
+) ENGINE=InnoDB;
+
+CREATE TABLE pc_build_items (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  build_id BIGINT NOT NULL,
+  product_id BIGINT NOT NULL,
+  quantity INT NOT NULL,
+  price_snapshot DECIMAL(19,2) NOT NULL,
+  UNIQUE KEY uk_core_build_product (build_id, product_id),
+  FOREIGN KEY (build_id) REFERENCES pc_builds(id),
+  FOREIGN KEY (product_id) REFERENCES products(id),
+  CHECK (quantity > 0 AND price_snapshot >= 0 AND price_snapshot = FLOOR(price_snapshot))
+) ENGINE=InnoDB;
+
+-- 06. PURCHASED UNITS / WARRANTY / MAINTENANCE
+CREATE TABLE purchased_units (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  order_item_id BIGINT NOT NULL,
+  product_id BIGINT NOT NULL,
+  unit_index INT NOT NULL,
+  asset_code VARCHAR(80) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  serial_number VARCHAR(150),
+  serial_normalized VARCHAR(150) CHARACTER SET ascii COLLATE ascii_bin,
+  warranty_start_at DATETIME(6) NOT NULL,
+  warranty_end_at DATETIME(6) NOT NULL,
+  warranty_terms_snapshot TEXT,
+  status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_core_unit_position (order_item_id, unit_index),
+  UNIQUE KEY uk_core_asset_code (asset_code),
+  UNIQUE KEY uk_core_product_serial (product_id, serial_normalized),
+  KEY ix_core_unit_warranty (warranty_end_at, status),
+  FOREIGN KEY (order_item_id, product_id) REFERENCES order_items(id, product_id),
+  CHECK (unit_index > 0),
+  CHECK ((serial_number IS NULL) = (serial_normalized IS NULL)),
+  CHECK (serial_normalized IS NULL OR CHAR_LENGTH(serial_normalized) > 0),
+  CHECK (warranty_end_at >= warranty_start_at),
+  CHECK (status IN ('ACTIVE','IN_SERVICE','VOID'))
+) ENGINE=InnoDB;
+
+CREATE TABLE service_requests (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  request_number VARCHAR(50) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  purchased_unit_id BIGINT NOT NULL,
+  customer_id BIGINT NOT NULL,
+  assigned_staff_id BIGINT,
+  type VARCHAR(20) NOT NULL,
+  description TEXT NOT NULL,
+  appointment_at DATETIME(6),
+  diagnosis TEXT,
+  work_performed TEXT,
+  estimated_cost DECIMAL(19,2),
+  customer_approved_at DATETIME(6),
+  final_cost DECIMAL(19,2),
+  payment_status VARCHAR(20) NOT NULL DEFAULT 'NOT_REQUIRED',
+  paid_at DATETIME(6),
+  result_note TEXT,
+  attachment_urls_json JSON,
+  status VARCHAR(30) NOT NULL DEFAULT 'SUBMITTED',
+  active_unit_id BIGINT GENERATED ALWAYS AS (CASE WHEN status NOT IN ('RETURNED','REJECTED','CANCELLED') THEN purchased_unit_id ELSE NULL END) STORED,
+  version BIGINT NOT NULL DEFAULT 0,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  completed_at DATETIME(6),
+  returned_at DATETIME(6),
+  UNIQUE KEY uk_core_service_number (request_number),
+  UNIQUE KEY uk_core_active_service (active_unit_id),
+  KEY ix_core_service_customer (customer_id, created_at),
+  KEY ix_core_service_queue (status, assigned_staff_id, created_at),
+  FOREIGN KEY (purchased_unit_id) REFERENCES purchased_units(id),
+  FOREIGN KEY (customer_id) REFERENCES users(id),
+  FOREIGN KEY (assigned_staff_id) REFERENCES users(id),
+  CHECK (type IN ('WARRANTY','MAINTENANCE')),
+  CHECK (status IN ('SUBMITTED','APPROVED','REJECTED','RECEIVED','INSPECTING','AWAITING_APPROVAL','IN_PROGRESS','COMPLETED','RETURNED','CANCELLED')),
+  CHECK (estimated_cost IS NULL OR (estimated_cost >= 0 AND estimated_cost = FLOOR(estimated_cost))),
+  CHECK (final_cost IS NULL OR (final_cost >= 0 AND final_cost = FLOOR(final_cost))),
+  CHECK (customer_approved_at IS NULL OR estimated_cost IS NOT NULL),
+  CHECK (final_cost IS NULL OR final_cost = 0 OR (estimated_cost IS NOT NULL AND customer_approved_at IS NOT NULL AND final_cost <= estimated_cost)),
+  CHECK (payment_status IN ('NOT_REQUIRED','UNPAID','PAID')),
+  CHECK (payment_status <> 'NOT_REQUIRED' OR final_cost IS NULL OR final_cost = 0),
+  CHECK (payment_status <> 'PAID' OR (final_cost IS NOT NULL AND final_cost > 0)),
+  CHECK ((payment_status = 'PAID') = (paid_at IS NOT NULL)),
+  CHECK (attachment_urls_json IS NULL OR JSON_TYPE(attachment_urls_json) = 'ARRAY'),
+  CHECK (status NOT IN ('COMPLETED','RETURNED') OR (completed_at IS NOT NULL AND final_cost IS NOT NULL)),
+  CHECK (status <> 'RETURNED' OR (returned_at IS NOT NULL AND payment_status IN ('NOT_REQUIRED','PAID'))),
+  CHECK (returned_at IS NULL OR (completed_at IS NOT NULL AND returned_at >= completed_at)),
+  CHECK (version >= 0)
+) ENGINE=InnoDB;
+
+CREATE TABLE service_request_history (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  service_request_id BIGINT NOT NULL,
+  changed_by BIGINT,
+  from_status VARCHAR(30),
+  to_status VARCHAR(30) NOT NULL,
+  note TEXT,
+  is_customer_visible BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  KEY ix_core_service_history (service_request_id, created_at, id),
+  FOREIGN KEY (service_request_id) REFERENCES service_requests(id),
+  FOREIGN KEY (changed_by) REFERENCES users(id),
+  CHECK (from_status IS NULL OR from_status IN ('SUBMITTED','APPROVED','REJECTED','RECEIVED','INSPECTING','AWAITING_APPROVAL','IN_PROGRESS','COMPLETED','RETURNED','CANCELLED')),
+  CHECK (to_status IN ('SUBMITTED','APPROVED','REJECTED','RECEIVED','INSPECTING','AWAITING_APPROVAL','IN_PROGRESS','COMPLETED','RETURNED','CANCELLED')),
+  CHECK (is_customer_visible IN (0,1))
+) ENGINE=InnoDB;
+
+-- 07. VERIFIED PURCHASE REVIEWS
+CREATE TABLE reviews (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  product_id BIGINT NOT NULL,
+  order_item_id BIGINT NOT NULL,
+  rating SMALLINT NOT NULL,
+  content TEXT NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uk_core_review_purchase (user_id, order_item_id),
+  KEY ix_core_review_product (product_id, status, created_at),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (order_item_id, product_id) REFERENCES order_items(id, product_id),
+  CHECK (rating BETWEEN 1 AND 5),
+  CHECK (status IN ('PENDING','APPROVED','REJECTED','HIDDEN'))
+) ENGINE=InnoDB;
+
+-- 08. REPORTING VIEWS (not extra tables)
+CREATE VIEW v_core_product_ratings AS
+SELECT product_id, COUNT(*) AS review_count, ROUND(AVG(rating), 2) AS average_rating
+FROM reviews WHERE status = 'APPROVED' GROUP BY product_id;
+
+CREATE VIEW v_core_daily_delivered_orders AS
+SELECT DATE(CONVERT_TZ(delivered_at, '+00:00', '+07:00')) AS report_date,
+       COUNT(*) AS delivered_orders, SUM(subtotal) AS item_value,
+       SUM(shipping_fee) AS shipping_value, SUM(total_amount) AS delivered_order_value
+FROM orders WHERE order_status = 'DELIVERED'
+GROUP BY DATE(CONVERT_TZ(delivered_at, '+00:00', '+07:00'));
+
+-- Cash movement, not profit or accrual revenue. Refunds use their actual refund date.
+CREATE VIEW v_core_daily_cash_flow AS
+SELECT report_date, SUM(cash_in) AS cash_in, SUM(cash_out) AS cash_out,
+       SUM(cash_in) - SUM(cash_out) AS net_cash
+FROM (
+  SELECT DATE(CONVERT_TZ(paid_at, '+00:00', '+07:00')) AS report_date,
+         amount AS cash_in, CAST(0 AS DECIMAL(19,2)) AS cash_out
+  FROM payments WHERE status = 'SUCCEEDED'
+  UNION ALL
+  SELECT DATE(CONVERT_TZ(refunded_at, '+00:00', '+07:00')),
+         CAST(0 AS DECIMAL(19,2)), refund_amount
+  FROM payments WHERE refund_status = 'SUCCEEDED'
+  UNION ALL
+  SELECT DATE(CONVERT_TZ(paid_at, '+00:00', '+07:00')),
+         final_cost, CAST(0 AS DECIMAL(19,2))
+  FROM service_requests WHERE payment_status = 'PAID'
+) cash_movements GROUP BY report_date;
+
+CREATE VIEW v_core_best_selling_products AS
+SELECT oi.product_id, SUM(oi.quantity) AS sold_quantity, SUM(oi.line_total) AS item_value
+FROM order_items oi JOIN orders o ON o.id = oi.order_id
+WHERE o.order_status = 'DELIVERED' AND oi.is_gift = 0
+GROUP BY oi.product_id;
+
+-- ============================================================================
+-- D. REFERENCE DATA
+-- ============================================================================
+-- Reference data only: no users/passwords, invented performance, stock or active gifts.
+SET NAMES utf8mb4;
+SET time_zone = '+00:00';
+START TRANSACTION;
+
+INSERT INTO brands (name, slug) VALUES
+('Intel','intel'), ('AMD','amd'), ('ASUS','asus'), ('MSI','msi'),
+('Gigabyte','gigabyte'), ('ASRock','asrock'), ('Kingston','kingston'),
+('Corsair','corsair'), ('G.Skill','gskill'), ('Samsung','samsung'),
+('Western Digital','western-digital'), ('Crucial','crucial'),
+('Seasonic','seasonic'), ('Cooler Master','cooler-master'),
+('DeepCool','deepcool'), ('Lian Li','lian-li'), ('Logitech','logitech'),
+('Razer','razer'), ('LG','lg'), ('Dell','dell');
+
+INSERT INTO categories (name, slug, category_group, sort_order) VALUES
+('Linh kiện máy tính','linh-kien','COMPONENT',1),
+('Phụ kiện máy tính','phu-kien','ACCESSORY',2);
+
+INSERT INTO categories (parent_id, name, slug, category_group, component_type, sort_order)
+SELECT p.id, x.name, x.slug, 'COMPONENT', x.kind, x.pos
+FROM categories p CROSS JOIN (
+  SELECT 'Bộ vi xử lý CPU' AS name, 'cpu' AS slug, 'CPU' AS kind, 1 AS pos
+  UNION ALL SELECT 'Bo mạch chủ','mainboard','MOTHERBOARD',2
+  UNION ALL SELECT 'Bộ nhớ RAM','ram','RAM',3
+  UNION ALL SELECT 'Card đồ họa','card-do-hoa','GPU',4
+  UNION ALL SELECT 'Ổ cứng SSD / HDD','o-cung','STORAGE',5
+  UNION ALL SELECT 'Nguồn máy tính','nguon','PSU',6
+  UNION ALL SELECT 'Vỏ máy tính','vo-case','CASE',7
+  UNION ALL SELECT 'Tản nhiệt CPU','tan-nhiet','COOLER',8
+  UNION ALL SELECT 'Quạt case','quat-case','FAN',9
+) x WHERE p.slug = 'linh-kien';
+
+INSERT INTO categories (parent_id, name, slug, category_group, component_type, sort_order)
+SELECT p.id, x.name, x.slug, 'ACCESSORY', x.kind, x.pos
+FROM categories p CROSS JOIN (
+  SELECT 'Màn hình' AS name, 'man-hinh' AS slug, 'MONITOR' AS kind, 1 AS pos
+  UNION ALL SELECT 'Bàn phím','ban-phim','OTHER',2
+  UNION ALL SELECT 'Chuột','chuot','OTHER',3
+  UNION ALL SELECT 'Tai nghe','tai-nghe','OTHER',4
+  UNION ALL SELECT 'Cáp kết nối','cap-ket-noi','OTHER',5
+  UNION ALL SELECT 'Lót chuột','lot-chuot','OTHER',6
+) x WHERE p.slug = 'phu-kien';
+
+COMMIT;
+
+-- ============================================================================
+-- E. HƯỚNG DẪN BACKEND / DỮ LIỆU JSON (CHÚ THÍCH, KHÔNG TỰ CHẠY)
+-- ============================================================================
+-- 1. TÀI KHOẢN VÀ ĐỊA CHỈ
+-- Email phải được trim/chuẩn hóa trước khi lưu. password_hash chứa BCrypt/Argon2.
+-- Role không cho khách tự gửi để nâng quyền. Tạo admin qua ứng dụng/lệnh quản trị.
+-- Reset mật khẩu: token ngẫu nhiên đủ mạnh, chỉ lưu SHA-256; kiểm tra thời hạn,
+-- khóa dòng users khi dùng; cập nhật mật khẩu và xóa cả hash/thời hạn atomically.
+-- auth_version tăng khi cần vô hiệu token cũ; backend phải kiểm tra version/status.
+-- Đổi địa chỉ mặc định: khóa users, unset mặc định cũ rồi set mới trong transaction.
+-- categories.parent_id: backend chặn tự tham chiếu và chu trình cha-con.
+--
+-- 2. CATALOG / PRODUCT_SPECS
+-- Cột capacity_gb: RAM = tổng dung lượng bộ; STORAGE = dung lượng ổ;
+-- GPU = VRAM. Cột memory_type dùng cho RAM/mainboard; CPU có danh sách trong JSON.
+-- max_power_draw_w: điện tiêu thụ cực đại của linh kiện, không phải công suất PSU.
+-- psu_capacity_w: công suất liên tục của PSU. form_factor là mã chuẩn theo loại.
+-- Không lặp cùng thông số ở cột và JSON. component_type phải khớp danh mục lá.
+-- JSON_TYPE chỉ kiểm tra hình dạng object; backend phải kiểm tra DTO theo loại,
+-- schema_version, trường bắt buộc, đơn vị, số dương và các mã được phép.
+-- Các trường tối thiểu cần thiết trong specifications_json (schema_version=1):
+-- CPU:
+--   core_count, thread_count, has_igpu, includes_cooler,
+--   supported_memory_types (array), max_memory_gb, cooling_requirement_note.
+-- MOTHERBOARD:
+--   chipset, ram_slots, max_ram_gb, memory_module_type, has_display_output,
+--   cpu_support: [{cpu_sku, status, minimum_bios, source_url}],
+--   installed_bios (khi biết), storage_slots: [{code, interface, protocols,
+--   form_factors, quantity}], power_connectors_required: {ATX_24:1, EPS_8:1},
+--   expansion_slots, lane_sharing_notes.
+-- RAM:
+--   module_type, modules_per_kit, capacity_per_module_gb, speed_mts, height_mm,
+--   is_ecc, is_registered; total capacity phải bằng modules * capacity_per_module.
+-- GPU:
+--   chipset, height_mm, thickness_slots, recommended_psu_w,
+--   power_connectors_required: {PCIE_8:2}.
+-- STORAGE:
+--   drive_type (SSD/HDD), interface_type, protocol, length_mm nếu chưa dùng cột.
+-- PSU:
+--   efficiency_rating, atx_version, power_connectors_supplied:
+--   {ATX_24:1, EPS_8:2, PCIE_8:4, SATA_POWER:6}.
+-- CASE:
+--   supported_motherboard_forms, supported_psu_forms, max_gpu_length_mm,
+--   max_cooler_height_mm, max_psu_length_mm, storage_mounts, included_fans.
+-- COOLER:
+--   cooler_type, supported_sockets, height_mm, mounting_kit_included,
+--   cooling_assessment (dữ liệu kiểm chứng; không suy luận chỉ từ TDP quảng cáo).
+-- OTHER/MONITOR/FAN: thông số hiển thị theo form tương ứng.
+-- Đây là hợp đồng dữ liệu đề xuất, không phải benchmark hay số liệu phần cứng mẫu.
+-- SKU dùng trong cpu_support phải tồn tại và đúng loại CPU; backend xác minh vì
+-- MySQL không tạo FK tới phần tử JSON. Không cho sửa SKU đã được tham chiếu tùy ý.
+-- verified_at chỉ đặt sau khi kiểm chứng nguồn; thiếu dữ liệu => UNKNOWN.
+--
+-- 3. AI BUILD
+-- Ngân sách mặc định là thùng máy, chưa gồm ship/màn hình/phụ kiện.
+-- Backend chỉ gửi tập SKU đang ACTIVE, còn hàng, đủ thông số cho AI.
+-- AI trả product_id + quantity và giải thích; backend tự lấy giá, không tin giá/URL
+-- AI tự tạo. Lưu ai_model để hỗ trợ tra lỗi; không lưu API key trong database.
+-- Kiểm tra CPU/main/BIOS, RAM/khe/dung lượng, ổ/khe/giao thức, case/kích thước,
+-- PSU/công suất/đầu nguồn, tản, xuất hình, tổng tiền và tồn. Cùng socket chưa đủ.
+-- validation_result_json dạng:
+-- {"overall":"PASS","checked_at":"UTC timestamp","rules":[
+--   {"code":"CPU_SUPPORT","result":"PASS","message":"..."}]}
+-- READY chỉ do backend cấp khi đã xác minh. CHECK của DB không đánh giá phần cứng.
+-- estimated_total phải bằng tổng quantity * price_snapshot; CHECK không SUM bảng con.
+-- Kiểm tra lại giá/tồn/khả năng tương thích khi thêm giỏ và lúc checkout.
+-- AI timeout/sai/không có cấu hình: FAILED hoặc NO_SOLUTION; không tạo ID giả.
+--
+-- 4. KHUYẾN MÃI / CHECKOUT / TỒN KHO
+-- Điều kiện thời gian: start_at <= now < end_at; GT là >, GTE là >=.
+-- Eligible subtotal = tổng tiền hàng mua (không gồm ship/quà).
+-- Chọn đúng một chương trình thỏa điều kiện theo priority DESC, id ASC.
+-- Muốn kích hoạt chương trình phải có ít nhất một promotion_gifts hợp lệ.
+-- Quà hết hàng/thay đổi quyền lợi: trả kết quả cho khách xác nhận lại, không âm thầm bỏ.
+-- promotion_snapshot lưu tên, ngưỡng, toán tử, thời gian và quà đã chốt.
+-- Một transaction checkout:
+-- a. Kiểm tra user, khóa cart, kiểm tra request_key + request_hash.
+--    Cùng key/cùng hash => trả lại đơn cũ; khác hash => HTTP 409.
+--    UNIQUE(user_id, request_key) xử lý cạnh tranh; khi duplicate thì rollback
+--    transaction mới, đọc lại đơn cũ và so hash, không trừ kho thêm.
+-- b. Khóa promotion/quà đang áp dụng; tổng hợp quantity theo product_id của cả
+--    hàng mua lẫn quà; khóa products theo id tăng dần để giảm deadlock.
+-- c. Kiểm tra lại giá/ACTIVE/tồn; cập nhật có điều kiện:
+--    UPDATE products SET stock_quantity=stock_quantity-:qty, version=version+1
+--    WHERE id=:id AND status='ACTIVE' AND stock_quantity>=:qty;
+--    Yêu cầu affected rows = 1, nếu không rollback TOÀN BỘ đơn.
+-- d. Tạo orders và order_items snapshot. Quà is_gift=1, unit_price=0.
+--    subtotal = SUM(order_items.line_total); total = subtotal + shipping_fee.
+--    Không cộng giá trị tham khảo của quà vào tiền phải thu.
+-- e. Xóa cart_items đã checkout, commit. Không giữ transaction lúc gọi HTTP VNPay.
+-- stock_quantity là khả dụng sau khi giữ cho đơn; lúc giao KHÔNG trừ thêm lần hai.
+-- Hủy/hết hạn: khóa orders, chỉ hủy trạng thái chưa giao, kiểm tra
+-- stock_released_at IS NULL; cộng trả mọi dòng kể cả quà và set timestamp cùng tx.
+-- Đơn SHIPPED không được hủy bằng luồng này; hàng giao thất bại cần quy trình riêng.
+-- Job chỉ hết hạn đơn online chưa trả tiền có payment_due_at; không hủy COD tự động.
+-- Không có stock ledger nên điều chỉnh kho chỉ dành cho nhân viên được phân quyền.
+--
+-- 5. THANH TOÁN / CALLBACK / HOÀN TIỀN
+-- payments là mỗi lần thử, amount phải bằng số tiền đơn được tính ở backend.
+-- Đơn tổng 0 (nếu cho phép): không tạo payments vì amount phải >0; backend phải
+-- xử lý trạng thái riêng hoặc từ chối checkout tổng 0 theo chính sách cửa hàng.
+-- VNPay: kiểm tra chữ ký, merchant, reference, VND và số tiền sau quy đổi định dạng
+-- nhà cung cấp; không tin redirect frontend. COD chỉ SUCCEEDED khi đã thu tiền.
+-- Callback: khóa order trước, rồi payment; chỉ cập nhật khi chưa ghi nhận thành công.
+-- UNIQUE(provider, provider_transaction_id) chống gắn cùng giao dịch vào hai payment.
+-- callback_processed_at là dấu xử lý thành công, không thay thế kiểm tra chữ ký.
+-- Không hạ SUCCEEDED xuống FAILED vì callback cũ/lặp. version hỗ trợ optimistic lock.
+-- Nếu hai lần thử đều thực sự thu được tiền, ghi nhận cả hai sự kiện thu và hoàn
+-- giao dịch thừa; không cấm ghi nhận sự thật bằng UNIQUE(order_id, status).
+-- Chỉ một khoản thu được dùng để thực hiện đơn; khóa order để quyết định.
+-- Callback đến sau hủy/hết hạn: ghi nhận khoản thu, đưa refund_status=PENDING,
+-- không tự chuyển đơn sang CONFIRMED hoặc trừ kho lại. Chưa được coi là đã hoàn.
+-- Hoàn tiền: chỉ giao dịch SUCCEEDED, refund_amount=amount, reference cố định
+-- để retry idempotent. Gọi cổng ngoài transaction; cập nhật SUCCEEDED/refunded_at
+-- chỉ khi nhận bằng chứng hoàn thành. Lỗi giữ FAILED để đối soát/retry cùng reference.
+-- orders.payment_status là tóm tắt theo khoản thanh toán của đơn, cập nhật cùng tx.
+-- Hoàn giao dịch thu thừa không làm đơn hợp lệ mất trạng thái PAID.
+-- Không có hoàn tiền một phần hay đổi trả một phần trong phạm vi này.
+--
+-- 6. GIAO HÀNG / BẢO HÀNH TỪNG MÓN
+-- Giao thành công: khóa order, cập nhật SHIPPED -> DELIVERED với timestamp hợp lệ.
+-- Tạo quantity bản ghi purchased_units cho MỖI order_item (một bộ RAM bán theo
+-- kit được tính là một món SKU). unit_index=1..quantity; UNIQUE chống tạo trùng.
+-- product_id phải khớp dòng hàng, đã được FK ghép ràng buộc.
+-- requires_serial_snapshot=1 => backend bắt buộc có serial; phụ kiện không serial
+-- dùng asset_code duy nhất. serial_normalized chuẩn hóa ASCII theo quy ước hãng,
+-- không tùy ý bỏ ký tự làm hai serial khác nhau bị trùng. UNIQUE theo product_id.
+-- warranty_start_at=delivered_at; warranty_end_at=DATE_ADD(start, INTERVAL months MONTH)
+-- với months từ snapshot dòng hàng. months=0 => không có thời hạn bảo hành.
+-- Điều kiện còn hạn: start <= now < end, status không VOID; vẫn kiểm tra điều khoản.
+-- Snapshot quyền lợi không cập nhật theo chính sách products sửa sau khi bán.
+-- Quà cũng có chính sách bảo hành snapshot tương ứng đã công bố.
+--
+-- 7. PHIẾU DỊCH VỤ / ĐÁNH GIÁ / QUYỀN SỞ HỮU
+-- Tạo service_requests phải kiểm tra customer_id là chủ đơn chứa purchased_unit,
+-- tài khoản nhân viên được phân công có STAFF/ADMIN. FK không tự kiểm tra điều này.
+-- UNIQUE(active_unit_id) chặn hai phiếu chưa đóng cho một món; COMPLETED vẫn đang
+-- giữ món, chỉ RETURNED/REJECTED/CANCELLED đóng phiếu. Bảo trì không đòi còn hạn BH.
+-- Luồng thường: SUBMITTED -> APPROVED -> RECEIVED -> INSPECTING ->
+-- AWAITING_APPROVAL (nếu có phí) -> IN_PROGRESS -> COMPLETED -> RETURNED.
+-- Mỗi chuyển trạng thái phải có quyền, ghi service_request_history cùng transaction;
+-- cập nhật purchased_units ACTIVE/IN_SERVICE nhất quán. Không xóa lịch sử đã ghi.
+-- Có phí: gửi estimated_cost, khách chấp thuận rồi mới làm; final_cost không vượt
+-- báo giá đã chấp thuận. Đổi báo giá phải xóa chấp thuận cũ và xin xác nhận mới,
+-- ghi bản giá cũ/mới vào lịch sử. Trả hàng cần đã thu phí hoặc không có phí.
+-- Thu tại cửa hàng: final_cost >0, payment_status=PAID, paid_at; không cần payments
+-- riêng cho dịch vụ. attachment_urls_json là array URL/key, không phải file binary;
+-- backend kiểm tra quyền truy cập/loại file/kích thước, không dùng URL tùy ý để fetch.
+-- reviews: chỉ chủ đơn DELIVERED, product_id đúng dòng hàng (FK ghép), rating 1..5.
+-- Các FK không thay thế kiểm tra ownership ở API. Lịch sử nội bộ không trả cho khách.
+--
+-- 8. BÁO CÁO VÀ KIỂM TRA SAU IMPORT
+-- v_core_product_ratings       : chỉ đánh giá APPROVED.
+-- v_core_daily_delivered_orders: giá trị đơn giao thành công, theo ngày Việt Nam.
+-- v_core_daily_cash_flow       : tiền thu từ payments + dịch vụ, trừ tiền hoàn;
+--                               ghi nhận ở ngày thực tế; KHÔNG phải lợi nhuận.
+-- v_core_best_selling_products : số lượng hàng bán của đơn DELIVERED, không tính quà.
+-- Không có giá vốn nên chưa tính lợi nhuận. Báo cáo đã tránh JOIN nhân số tiền.
+-- Các query kiểm tra, chạy thủ công nếu muốn:
+-- SELECT COUNT(*) FROM information_schema.tables
+-- WHERE table_schema='pcforge_core20' AND table_type='BASE TABLE'; -- 20
+-- SELECT COUNT(*) FROM information_schema.views
+-- WHERE table_schema='pcforge_core20'; -- 4
+-- SELECT COUNT(*) FROM brands; -- 20
+-- SELECT COUNT(*) FROM categories; -- 17
+-- SELECT * FROM v_core_product_ratings;
+--
+-- Tài liệu đã kiểm tra tĩnh cấu trúc và cú pháp bằng parser. Chưa chạy SQL trên
+-- MySQL trong bước tạo file này; cần kiểm thử MySQL khi bạn quyết định import.
+-- CHECK chỉ kiểm tra một dòng. Tổng đơn, số món, quyền sở hữu, trạng thái chuyển,
+-- tương thích linh kiện và side effect thanh toán/tồn kho cần backend triển khai.
+-- Không tự thêm sản phẩm giả hoặc đánh dấu verified_at khi chưa xác minh nguồn.
+-- ============================================================================
+-- HẾT FILE
+-- ============================================================================
