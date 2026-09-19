@@ -1,0 +1,205 @@
+PCForge - Bản rút gọn Core12 (12 bảng)
+========================================
+Rút gọn từ bản Core20 (20 bảng) → Core17 (đã gộp specs, images) → Core12 (bản này).
+Phạm vi giữ nguyên: 1 kho, thanh toán COD/VNPay, hoàn tiền toàn bộ giao dịch,
+chưa hỗ trợ đổi trả một phần, chưa có giá vốn, chưa có lịch bảo trì định kỳ tự động.
+
+So với bản 17 bảng, Core12 gộp thêm 5 bảng phụ vào cột JSON của bảng chính:
+  - promotion_gifts      → promotions.gift_items_json
+  - pc_build_items       → pc_builds.items_json
+  - service_request_history → service_requests.history_json
+  - addresses            → orders.shipping_address_json (+ users.default_address_json)
+  - reviews              → order_items (rating, comment, reviewed_at)
+
+ĐÁNH ĐỔI CẦN LƯU Ý:
+  - Không còn "sổ địa chỉ" nhiều địa chỉ đã lưu; mỗi đơn lưu snapshot địa chỉ giao hàng.
+  - Lịch sử xử lý bảo trì không còn dạng bảng có thể JOIN/query SQL thuần.
+  - Danh sách quà tặng khuyến mãi và danh sách linh kiện AI đề xuất không còn FK
+    ràng buộc tới products ở tầng DB — backend phải tự validate product_id tồn tại.
+  - payments và purchased_units KHÔNG gộp (giữ nguyên lý do đã phân tích trước đó):
+      + payments tách khỏi orders vì một đơn có thể có nhiều lần thử thanh toán.
+      + purchased_units tách khỏi order_items để service_requests có FK chính xác
+        tới từng đơn vị hàng (bảo hành/bảo trì theo từng sản phẩm cụ thể).
+
+========================================
+1. users
+========================================
+id                    BIGINT PK AUTO_INCREMENT
+full_name             VARCHAR(150) NOT NULL
+email                 VARCHAR(150) NOT NULL UNIQUE
+phone                 VARCHAR(20)
+password_hash         VARCHAR(255) NOT NULL
+role                  ENUM('customer','staff','admin') DEFAULT 'customer'
+default_address_json  JSON            -- {receiver_name, phone, address_line, ward, district, city}
+created_at            TIMESTAMP
+updated_at            TIMESTAMP
+
+========================================
+2. categories
+========================================
+id            BIGINT PK AUTO_INCREMENT
+name          VARCHAR(100) NOT NULL
+slug          VARCHAR(120) NOT NULL UNIQUE
+created_at    TIMESTAMP
+
+========================================
+3. brands
+========================================
+id            BIGINT PK AUTO_INCREMENT
+name          VARCHAR(100) NOT NULL
+slug          VARCHAR(120) NOT NULL UNIQUE
+created_at    TIMESTAMP
+
+========================================
+4. products   (đã gộp product_specs + product_images từ bản Core20)
+========================================
+id                    BIGINT PK AUTO_INCREMENT
+category_id           BIGINT FK -> categories.id
+brand_id              BIGINT FK -> brands.id
+sku                   VARCHAR(50) UNIQUE
+name                  VARCHAR(200) NOT NULL
+slug                  VARCHAR(220) NOT NULL UNIQUE
+description           TEXT
+price                 DECIMAL(12,2) NOT NULL
+stock_quantity        INT NOT NULL DEFAULT 0
+status                ENUM('active','inactive','discontinued') DEFAULT 'active'
+-- các cột thông số kỹ thuật (để trống tùy loại linh kiện)
+component_type        VARCHAR(50)      -- cpu, mainboard, ram, vga, psu, case, ssd...
+socket_code           VARCHAR(30)
+memory_type           VARCHAR(20)
+capacity_gb           INT
+form_factor           VARCHAR(30)
+max_power_draw_w      INT
+psu_capacity_w        INT
+length_mm             INT
+specifications_json   JSON            -- các thông số phụ không cần cột riêng/index
+spec_version          VARCHAR(10)
+spec_source           VARCHAR(100)
+spec_verified_at      TIMESTAMP
+-- ảnh sản phẩm (gộp từ product_images)
+images_json           JSON            -- [{url, alt, sort_order}]
+created_at            TIMESTAMP
+updated_at            TIMESTAMP
+
+========================================
+5. cart_items  (đã bỏ carts, liên kết thẳng tới users)
+========================================
+id            BIGINT PK AUTO_INCREMENT
+user_id       BIGINT FK -> users.id
+product_id    BIGINT FK -> products.id
+quantity      INT NOT NULL DEFAULT 1
+created_at    TIMESTAMP
+updated_at    TIMESTAMP
+UNIQUE (user_id, product_id)
+
+========================================
+6. orders
+========================================
+id                     BIGINT PK AUTO_INCREMENT
+user_id                BIGINT FK -> users.id
+order_code             VARCHAR(30) UNIQUE
+status                 ENUM('pending','confirmed','shipping','completed','cancelled','refunded')
+payment_method         ENUM('cod','vnpay')
+subtotal_amount        DECIMAL(12,2)
+discount_amount        DECIMAL(12,2) DEFAULT 0
+shipping_fee           DECIMAL(12,2) DEFAULT 0
+total_amount           DECIMAL(12,2)
+promotion_id           BIGINT FK -> promotions.id NULLABLE
+shipping_address_json  JSON      -- snapshot địa chỉ tại thời điểm đặt hàng (gộp từ addresses)
+note                   TEXT
+created_at             TIMESTAMP
+updated_at             TIMESTAMP
+
+========================================
+7. order_items  (đã gộp thêm reviews)
+========================================
+id                    BIGINT PK AUTO_INCREMENT
+order_id              BIGINT FK -> orders.id
+product_id            BIGINT FK -> products.id
+product_name_snapshot VARCHAR(200)   -- lưu tên tại thời điểm mua, tránh đổi tên sau này
+unit_price            DECIMAL(12,2)
+quantity              INT NOT NULL
+line_total            DECIMAL(12,2)
+is_gift               BOOLEAN DEFAULT FALSE   -- quà tặng khuyến mãi: giá 0, vẫn trừ tồn
+rating                TINYINT           -- 1-5, NULL nếu chưa đánh giá
+comment               TEXT
+reviewed_at           TIMESTAMP
+created_at            TIMESTAMP
+
+========================================
+8. payments   (KHÔNG gộp vào orders — 1 đơn có thể nhiều lần thử thanh toán)
+========================================
+id                BIGINT PK AUTO_INCREMENT
+order_id          BIGINT FK -> orders.id
+method            ENUM('cod','vnpay')
+amount            DECIMAL(12,2)
+status            ENUM('pending','success','failed','refunded')
+transaction_code  VARCHAR(100)
+paid_at           TIMESTAMP
+created_at        TIMESTAMP
+
+========================================
+9. promotions  (đã gộp promotion_gifts)
+========================================
+id                BIGINT PK AUTO_INCREMENT
+name              VARCHAR(150) NOT NULL
+code              VARCHAR(30) UNIQUE
+description       TEXT
+min_order_amount  DECIMAL(12,2) NOT NULL   -- ngưỡng mua để được tặng
+discount_type     ENUM('percent','fixed')
+discount_value    DECIMAL(12,2)
+gift_items_json   JSON     -- [{product_id, quantity}] - danh sách quà tặng kèm
+start_at          TIMESTAMP
+end_at            TIMESTAMP
+is_active         BOOLEAN DEFAULT TRUE
+created_at        TIMESTAMP
+
+========================================
+10. pc_builds  (đã gộp pc_build_items — phục vụ AI đề xuất build PC)
+========================================
+id               BIGINT PK AUTO_INCREMENT
+user_id          BIGINT FK -> users.id NULLABLE  -- cho phép khách vãng lai dùng thử AI
+budget_amount    DECIMAL(12,2) NOT NULL          -- ngân sách người dùng nhập
+purpose          VARCHAR(50)                     -- gaming, van_phong, do_hoa...
+ai_prompt        TEXT                            -- prompt gửi cho AI
+ai_response_raw  TEXT                            -- phản hồi thô từ AI (log/debug)
+items_json       JSON      -- [{product_id, role, quantity, price_at_time}]
+                            -- role: cpu, mainboard, ram, vga, psu, case, storage...
+total_price      DECIMAL(12,2)                   -- tổng giá build AI đề xuất
+status           ENUM('draft','confirmed','ordered') DEFAULT 'draft'
+created_at       TIMESTAMP
+
+========================================
+11. purchased_units  (KHÔNG gộp — cần PK riêng để bảo hành từng món)
+========================================
+id                 BIGINT PK AUTO_INCREMENT
+order_item_id      BIGINT FK -> order_items.id
+serial_number      VARCHAR(100) NULLABLE   -- có với linh kiện có serial (CPU, VGA...)
+asset_code         VARCHAR(100) NULLABLE   -- mã nội bộ cho phụ kiện không có serial
+warranty_start_date DATE
+warranty_end_date   DATE
+warranty_status     ENUM('active','expired','void') DEFAULT 'active'
+created_at          TIMESTAMP
+
+========================================
+12. service_requests  (đã gộp service_request_history)
+========================================
+id                  BIGINT PK AUTO_INCREMENT
+purchased_unit_id   BIGINT FK -> purchased_units.id
+user_id             BIGINT FK -> users.id
+issue_description   TEXT NOT NULL
+status              ENUM('received','diagnosing','quoted','repairing','completed','rejected')
+quoted_fee          DECIMAL(12,2)
+appointment_at      TIMESTAMP
+history_json        JSON  -- [{status, note, actor, at}] - lịch sử xử lý theo thời gian
+created_at          TIMESTAMP
+updated_at          TIMESTAMP
+
+========================================
+Đối chiếu yêu cầu chức năng
+========================================
+- Khuyến mãi theo ngưỡng, tặng nhiều loại quà : promotions (gift_items_json), order_items.is_gift
+- AI Build PC theo ngân sách                  : pc_builds (items_json, ai_prompt, ai_response_raw)
+- Bảo hành/bảo trì từng sản phẩm              : purchased_units + service_requests
+- Bán linh kiện & phụ kiện                    : categories, brands, products
+- Mua hàng, giỏ hàng, thanh toán, đánh giá     : cart_items, orders, order_items, payments

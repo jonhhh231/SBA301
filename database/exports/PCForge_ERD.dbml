@@ -1,0 +1,129 @@
+// =========================================================
+// PCForge — Conceptual ERD (Core12)
+// Import trực tiếp vào https://dbdiagram.io (File > Import > DBML)
+// =========================================================
+
+Table users {
+  id integer [pk]
+  name varchar
+  email varchar
+  role varchar [note: 'khach vang lai / thanh vien']
+}
+
+Table categories {
+  id integer [pk]
+  name varchar
+}
+
+Table brands {
+  id integer [pk]
+  name varchar
+}
+
+Table products {
+  id integer [pk]
+  category_id integer
+  brand_id integer
+  name varchar
+  price decimal
+  stock integer [note: 'kho duy nhat, quan ly truc tiep tren san pham']
+  specs json
+}
+
+Table cart_items {
+  id integer [pk]
+  user_id integer
+  product_id integer
+  quantity integer
+  note varchar [note: 'moi cap user-product la duy nhat']
+}
+
+Table orders {
+  id integer [pk]
+  user_id integer
+  promotion_id integer [note: 'optional']
+  shipping_address varchar
+  status varchar
+  created_at datetime
+}
+
+Table order_items {
+  id integer [pk]
+  order_id integer
+  product_id integer
+  product_name_snapshot varchar
+  price_snapshot decimal
+  quantity integer
+  review json [note: 'toi da 1 danh gia moi dong hang']
+}
+
+Table payments {
+  id integer [pk]
+  order_id integer
+  method varchar [note: 'COD / VNPay']
+  status varchar
+  attempt_no integer [note: 'mot don co the co nhieu lan thu']
+}
+
+Table promotions {
+  id integer [pk]
+  name varchar
+  type varchar [note: 'giam gia / qua tang theo nguong don hang']
+  gift_products_json json [note: 'quan he N-N voi products, luu bang JSON, khong co FK truc tiep']
+}
+
+Table pc_builds {
+  id integer [pk]
+  user_id integer [note: 'optional - ho tro ca khach vang lai']
+  status varchar [note: 'vd: ordered - nhung KHONG co lien ket truc tiep den orders']
+  components_json json [note: 'quan he N-N voi products: linh kien, so luong, vai tro, gia tai thoi diem de xuat - luu JSON, khong co FK truc tiep']
+  created_at datetime
+}
+
+Table purchased_units {
+  id integer [pk]
+  order_item_id integer
+  serial_or_unit_ref varchar
+  warranty_status varchar
+}
+
+Table service_requests {
+  id integer [pk]
+  purchased_unit_id integer
+  user_id integer
+  description varchar
+  processing_history json
+  status varchar
+}
+
+// =========================================================
+// Quan hệ (Relationships)
+// =========================================================
+
+Ref: categories.id < products.category_id // 1-N, moi san pham thuoc 1 danh muc
+Ref: brands.id < products.brand_id        // 1-N, moi san pham thuoc 1 thuong hieu
+
+Ref: users.id < cart_items.user_id        // 1-N
+Ref: products.id < cart_items.product_id  // 1-N
+
+Ref: users.id < orders.user_id            // 1-N
+Ref: promotions.id < orders.promotion_id  // 1-N, optional
+
+Ref: orders.id < order_items.order_id     // 1-N, don hang hop le co it nhat 1 dong hang
+Ref: products.id < order_items.product_id // 1-N
+
+Ref: orders.id < payments.order_id        // 1-N
+
+Ref: order_items.id < purchased_units.order_item_id     // 1-N
+Ref: purchased_units.id < service_requests.purchased_unit_id // 1-N
+Ref: users.id < service_requests.user_id  // 1-N
+
+Ref: users.id < pc_builds.user_id         // 1-N, optional (khach vang lai khong co user_id)
+
+// Ghi chu: 2 quan he sau la quan he nghiep vu N-N, hien luu bang JSON
+// (khong co bang trung gian / FK that trong Core12):
+//   - pc_builds  <-> products  (de xuat linh kien)
+//   - promotions <-> products  (tang kem)
+// Neu muon the hien tuong trung trong dbdiagram, co the tao 2 bang
+// trung gian (pc_build_items, promotion_gifts) - xem ghi chu trong
+// file noi dung di kem.
